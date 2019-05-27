@@ -1,0 +1,47 @@
+{% set name = "genemethods" %}
+{% set version = "0.0.0.1" %}
+{% set file_ext = "tar.gz" %}
+{% set hash_type = "sha256" %}
+{% set hash_value = "77361b9fe1c924afa6aba43f177664776f19e6e1f365e67fa3e1c2238a19c196" %}
+
+package:
+  name: '{{ name|lower }}'
+  version: '{{ version }}'
+
+source:
+  fn: '{{ name }}-{{ version }}.{{ file_ext }}'
+  url: https://pypi.io/packages/source/{{ name[0] }}/{{ name }}/{{ name }}-{{ version }}.{{ file_ext }}
+  '{{ hash_type }}': '{{ hash_value }}'
+
+build:
+  number: 0
+  noarch: python
+  script: python setup.py install --single-version-externally-managed --record=record.txt
+
+requirements:
+  host:
+    - python >=3
+
+  run:
+    - olctools=1.0.7=py_0
+    - python=3.6.8=h0371630_0
+    - seaborn=0.9.0=py_0
+    - psutil=5.6.2=py36h516909a_0
+test:
+  imports:
+    - geneseekr
+    - customsippr
+    - MASHsippr
+    - MLSTsippr
+    - genesippr
+    - pointfinder
+    - pointsippr
+    - serosippr
+    - sipprverse_reporter
+    - sixteenS
+about:
+  home: https://github.com/OLC-Bioinformatics/genemethods
+  license: MIT
+  license_family: MIT
+  summary: Common methods for object oriented gene target finding software
+  description: Package of methods common to GeneSeekr/sipprverse pipelines
