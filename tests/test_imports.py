@@ -8,7 +8,7 @@ def test_imports():
     """
     for root, dirs, files in os.walk('.'):
         for f in files:
-            package = os.path.basename(root)
+            package = '.'.join(os.path.split(root.lstrip('./')))
             module = os.path.splitext(f)[0]
             if f.endswith('.py') and '__' not in f and 'test_' not in f and root != '.' and f != 'setup.py':
                 import_statement = 'import {package}.{module}'.format(package=package,
