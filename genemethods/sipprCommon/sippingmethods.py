@@ -288,7 +288,7 @@ class Sippr(object):
                                                   o=True,
                                                   out_prefix="-")
                 # Determine the location of the SAM header editing script
-                scriptlocation = sipprCommon.editsamheaders.__file__
+                scriptlocation = genemethods.sipprCommon.editsamheaders.__file__
                 samtools = [
                     # When bowtie2 maps reads to all possible locations rather than choosing a 'best' placement, the
                     # SAM header for that read is set to 'secondary alignment', or 256. Please see:
