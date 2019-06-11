@@ -66,9 +66,12 @@ class Reporter(object):
             # rMLST_Result
             try:
                 # If the number of matches to the closest reference profile is 53, return the profile number
-                if sample.rmlst.matches == 53:
-                    rmlst_seq_type = GenObject.returnattr(sample.rmlst, 'sequencetype')
-                    rmlst_seq_type = rmlst_seq_type if rmlst_seq_type != 'ND,' else 'new,'
+                if sample.rmlst_assembled.matches == 53:
+                    if type(sample.rmlst_assembled.sequencetype) is list:
+                        rmlst_seq_type = ';'.join(sorted(sample.rmlst_assembled.sequencetype)).rstrip(';') + ','
+                    else:
+                        rmlst_seq_type = GenObject.returnattr(sample.rmlst_assembled, 'sequencetype')
+                        rmlst_seq_type = rmlst_seq_type if rmlst_seq_type != 'ND,' else 'new,'
                     data += rmlst_seq_type
                 else:
                     # Otherwise the profile is set to new
@@ -78,7 +81,12 @@ class Reporter(object):
             # MLST_Result
             try:
                 if sample.mlst.matches == 7:
-                    data += GenObject.returnattr(sample.mlst, 'sequencetype')
+                    if type(sample.mlst.sequencetype) is list:
+                        mlst_seq_type = ';'.join(sorted(sample.mlst.sequencetype)).rstrip(';') + ','
+                    else:
+                        mlst_seq_type = GenObject.returnattr(sample.mlst, 'sequencetype')
+                        mlst_seq_type = mlst_seq_type if mlst_seq_type != 'ND,' else 'new,'
+                    data += mlst_seq_type
                 else:
                     data += 'new,'
                     # # Create a set of all the genes present in the results (gene name split from allele)
@@ -95,11 +103,11 @@ class Reporter(object):
             # MLST_gene_X_alleles
             try:
                 # Create a set of all the genes present in the results (gene name split from allele)
-                gene_set = {gene.split('_')[0] for gene in sample.mlst.combined_metdata_results}
+                gene_set = {gene.split('_')[0] for gene in sample.mlst.combined_metadata_results}
                 for gene in sorted(gene_set):
                     allele_list = list()
                     # Determine all the alleles that are present for each gene
-                    for allele in sample.mlst.combined_metdata_results:
+                    for allele in sample.mlst.combined_metadata_results:
                         if gene in allele:
                             allele_list.append(allele.replace(' ', '_'))
                     # If there is more than one allele in the sample, add both to the string separated by a ';'
