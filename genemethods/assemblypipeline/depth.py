@@ -6,9 +6,12 @@ from Bio.Sequencing.Applications import SamtoolsViewCommandline, SamtoolsSortCom
 from Bio.Application import ApplicationError
 from Bio import SeqIO
 from threading import Lock, Thread
+from argparse import ArgumentParser
 from click import progressbar
 from io import StringIO
+import multiprocessing
 from glob import glob
+from time import time
 import threading
 import logging
 import shutil
@@ -35,7 +38,7 @@ class QualiMap(object):
         """
         Create threads and commands for performing reference mapping for qualimap analyses
         """
-        for i in range(self.cpus):
+        for i in range(self.threads):
             # Send the threads to the merge method. :args is empty as I'm using
             threads = Thread(target=self.align, args=())
             # Set the daemon to true - something to do with thread management
@@ -92,9 +95,9 @@ class QualiMap(object):
                     sample.commands.bowtie2build = str(bowtie2build)
                     self.bowqueue.put((sample, sample.commands.bowtie2build, sample.commands.bowtie2align))
                 else:
-                    sample.commands.samtools = "NA"
-                    sample.mapping.MeanInsertSize = 'NA'
-                    sample.mapping.MeanCoveragedata = 'NA'
+                    sample.commands.samtools = 'ND'
+                    sample.mapping.MeanInsertSize = 'ND'
+                    sample.mapping.MeanCoveragedata = 'ND'
         self.bowqueue.join()
 
     def align(self):
@@ -108,10 +111,20 @@ class QualiMap(object):
                         stdout.close()
                         out, err = run_subprocess(str(func))
                         self.threadlock.acquire()
-                        write_to_logfile(str(func), str(func), self.logfile, sample.general.logout,
-                                         sample.general.logerr, None, None)
-                        write_to_logfile(out, err, self.logfile, sample.general.logout, sample.general.logerr,
-                                         None, None)
+                        write_to_logfile(out=str(func),
+                                         err=str(func),
+                                         logfile=self.logfile,
+                                         samplelog=sample.general.logout,
+                                         sampleerr=sample.general.logerr,
+                                         analysislog=None,
+                                         analysiserr=None)
+                        write_to_logfile(out=out,
+                                         err=err,
+                                         logfile=self.logfile,
+                                         samplelog=sample.general.logout,
+                                         sampleerr=sample.general.logerr,
+                                         analysislog=None,
+                                         analysiserr=None)
                         self.threadlock.release()
             # For different alignment
             sam = sample.general.bowtie2results + ".sam"
@@ -145,8 +158,9 @@ class QualiMap(object):
             # Define the Qualimap log and report files
             reportfile = os.path.join(sample.general.QualimapResults, 'genome_results.txt')
             # Define the Qualimap call
-            qualimapcall = 'qualimap bamqc -bam {} -outdir {}'.format(sample.general.sortedbam,
-                                                                      sample.general.QualimapResults)
+            qualimapcall = 'qualimap bamqc -bam {sorted_bam} -outdir {outdir}'\
+                .format(sorted_bam=sample.general.sortedbam,
+                        outdir=sample.general.QualimapResults)
             sample.commands.qualimap = qualimapcall
             # Initialise a dictionary to hold the Qualimap results
             qdict = dict()
@@ -155,9 +169,20 @@ class QualiMap(object):
                 tlock = threading.Lock()
                 out, err = run_subprocess(sample.commands.qualimap)
                 tlock.acquire()
-                write_to_logfile(sample.commands.qualimap, sample.commands.qualimap, self.logfile,
-                                 sample.general.logout, sample.general.logerr, None, None)
-                write_to_logfile(out, err, self.logfile, sample.general.logout, sample.general.logerr, None, None)
+                write_to_logfile(out=sample.commands.qualimap,
+                                 err=sample.commands.qualimap,
+                                 logfile=self.logfile,
+                                 samplelog=sample.general.logout,
+                                 sampleerr=sample.general.logerr,
+                                 analysislog=None,
+                                 analysiserr=None)
+                write_to_logfile(out=out,
+                                 err=err,
+                                 logfile=self.logfile,
+                                 samplelog=sample.general.logout,
+                                 sampleerr=sample.general.logerr,
+                                 analysislog=None,
+                                 analysiserr=None)
                 tlock.release()
             # Initialise a genobject to store the coverage dictionaries
             sample.depth = GenObject()
@@ -197,7 +222,6 @@ class QualiMap(object):
     def indexing(self):
         logging.info('Indexing sorted bam files')
         for i in range(self.cpus):
-            # Send the threads to
             threads = Thread(target=self.index, args=())
             # Set the daemon to true - something to do with thread management
             threads.setDaemon(True)
@@ -235,31 +259,30 @@ class QualiMap(object):
         Run pilon to fix any misassemblies in the contigs - will look for SNPs and indels
         """
         logging.info('Improving quality of assembly with pilon')
-        for i in range(self.cpus):
-            # Send the threads to the merge method. :args is empty as I'm using
+        for i in range(self.threads):
+            # Send the threads to the merge method. :args is empty
             threads = Thread(target=self.pilonthreads, args=())
             # Set the daemon to true - something to do with thread management
             threads.setDaemon(True)
             # Start the threading
             threads.start()
-        with progressbar(self.metadata) as bar:
-            for sample in bar:
-                if sample.general.bestassemblyfile != 'NA':
-                    if sample.general.polish:
-                        # Set the name of the unfiltered assembly output file
-                        sample.general.contigsfile = sample.general.assemblyfile
-                        sample.mapping.pilondir = os.path.join(sample.general.QualimapResults, 'pilon')
-                        make_path(sample.mapping.pilondir)
-                        # Create the command line command
-                        sample.mapping.piloncmd = 'pilon --genome {} --bam {} --fix bases --threads {} ' \
-                                                  '--outdir {} --changes --mindepth 0.25' \
-                            .format(sample.general.contigsfile,
-                                    sample.mapping.BamFile,
-                                    self.threads,
-                                    sample.mapping.pilondir)
-                        self.pilonqueue.put(sample)
-                    else:
-                        sample.general.contigsfile = sample.general.assemblyfile
+        for sample in self.metadata:
+            if sample.general.bestassemblyfile != 'NA':
+                if sample.general.polish:
+                    # Set the name of the unfiltered assembly output file
+                    sample.general.contigsfile = sample.general.assemblyfile
+                    sample.mapping.pilondir = os.path.join(sample.general.QualimapResults, 'pilon')
+                    make_path(sample.mapping.pilondir)
+                    # Create the command line command
+                    sample.mapping.piloncmd = 'pilon --genome {raw_assembly} --bam {sorted_bam} --fix bases ' \
+                                              '--threads {threads} --outdir {outdir} --changes --mindepth 0.25' \
+                        .format(raw_assembly=sample.general.contigsfile,
+                                sorted_bam=sample.mapping.BamFile,
+                                threads=self.threads,
+                                outdir=sample.mapping.pilondir)
+                    self.pilonqueue.put(sample)
+                else:
+                    sample.general.contigsfile = sample.general.assemblyfile
         self.pilonqueue.join()
 
     def pilonthreads(self):
@@ -271,9 +294,20 @@ class QualiMap(object):
                 command = sample.mapping.piloncmd
                 out, err = run_subprocess(command)
                 self.threadlock.acquire()
-                write_to_logfile(command, command, self.logfile, sample.general.logout, sample.general.logerr, None,
-                                 None)
-                write_to_logfile(out, err, self.logfile, sample.general.logout, sample.general.logerr, None, None)
+                write_to_logfile(out=command,
+                                 err=command,
+                                 logfile=self.logfile,
+                                 samplelog=sample.general.logout,
+                                 sampleerr=sample.general.logerr,
+                                 analysislog=None,
+                                 analysiserr=None)
+                write_to_logfile(out=out,
+                                 err=err,
+                                 logfile=self.logfile,
+                                 samplelog=sample.general.logout,
+                                 sampleerr=sample.general.logerr,
+                                 analysislog=None,
+                                 analysiserr=None)
                 self.threadlock.release()
             self.pilonqueue.task_done()
 
@@ -281,7 +315,6 @@ class QualiMap(object):
         """
         Filter contigs based on depth
         """
-
         logging.info('Filtering contigs')
         for i in range(self.cpus):
             # Send the threads to the filter method
@@ -408,9 +441,9 @@ if __name__ == '__main__':
                 # Extract the name of the strain from the path and file extension
                 strainname = os.path.split(strain)[1].split('.')[0]
                 # Find the corresponding fastq files for each strain
-                fastq = sorted(glob(os.path.join(self.fastqpath, '{}*fastq*'.format(strainname))))
+                fastq = sorted(glob(os.path.join(self.fastqpath, '{sn}*fastq*'.format(sn=strainname))))
                 # Ensure that fastq files are present for each assembly
-                assert fastq, 'Cannot find fastq files for strain {}'.format(strainname)
+                assert fastq, 'Cannot find fastq files for strain {sn}'.format(sn=strainname)
                 # Create the object
                 metadata = MetadataObject()
                 # Set the .name attribute to be the file name
@@ -428,8 +461,6 @@ if __name__ == '__main__':
                 self.samples.append(metadata)
 
         def __init__(self):
-            from argparse import ArgumentParser
-            import multiprocessing
             parser = ArgumentParser(description='Calculates coverage depth by mapping FASTQ reads against assemblies')
             parser.add_argument('-p', '--path',
                                 default=os.getcwd(),
@@ -453,8 +484,8 @@ if __name__ == '__main__':
             # Use the argument for the number of threads to use, or default to the number of cpus in the system
             self.cpus = args.threads if args.threads else multiprocessing.cpu_count()
             # Initialise variables
-            self.strains = []
-            self.samples = []
+            self.strains = list()
+            self.samples = list()
             self.logfile = os.path.join(self.path, 'logfile.txt')
 
             # Associate the assemblies and fastq files in a metadata object
@@ -475,6 +506,5 @@ if __name__ == '__main__':
             QualiMap(self)
 
     # Run the class
-    from time import time
     starttime = time()
-    MetadataInit(starttime)
+    MetadataInit(start=starttime)
