@@ -33,7 +33,7 @@ class GDCS(Sippr):
         Run the necessary methods in the correct order
         """
         if not os.path.isfile(self.gdcs_report):
-            logging.info('Starting {} analysis pipeline'.format(self.analysistype))
+            logging.info('Starting {at} analysis pipeline'.format(at=self.analysistype))
             # Run the analyses
             ShortKSippingMethods(self, self.cutoff)
             # Create the reports
@@ -48,8 +48,7 @@ class GDCS(Sippr):
 
     def report_parse(self):
         """
-
-        :return:
+        Parse an existing GDCS report, and extract the results
         """
         nesteddictionary = dict()
         # Use pandas to read in the CSV file, and convert the pandas data frame to a dictionary (.to_dict())
@@ -165,7 +164,7 @@ class Plasmids(GeneSippr):
         """
         Run the necessary methods in the correct order
         """
-        logging.info('Starting {} analysis pipeline'.format(self.analysistype))
+        logging.info('Starting {at} analysis pipeline'.format(at=self.analysistype))
         if not self.pipeline:
             general = None
             for sample in self.runmetadata.samples:
@@ -323,9 +322,8 @@ class Serotype(SeroSippr):
 
     def report_parse(self, sero_report):
         """
-
-        :param sero_report:
-        :return:
+        Parse an existing report, and extract the results
+        :param sero_report: type STR: Name and absolute path of the report
         """
         with open(sero_report, 'r') as report:
             next(report)
@@ -485,7 +483,7 @@ class Resistance(ResSippr):
     def main(self):
         res_report = os.path.join(self.reportpath, 'resfinder.csv')
         if os.path.isfile(res_report):
-            self.parse_report(res_report)
+            self.parse_report(res_report=res_report)
         else:
             self.runner()
             # Create the reports
@@ -493,12 +491,32 @@ class Resistance(ResSippr):
 
     def parse_report(self, res_report):
         """
-
-        :param res_report:
-        :return:
+        Parse an existing report, and extract the results
+        :param res_report: type STR: name and absolute path of the report
         """
-        # logging.critical(res_report)
-        pass
+        for sample in self.runmetadata.samples:
+            setattr(sample, self.analysistype, GenObject())
+            sample[self.analysistype].results = dict()
+            sample[self.analysistype].pipelineresults = list()
+            sample[self.analysistype].avgdepth = dict()
+            with open(res_report, 'r') as report:
+                next(report)
+                for line in report:
+                    try:
+                        strain, res, gene, allele, accession, perc_ident, length, fold_cov = line.rstrip().split(',')
+                        if sample.name in line:
+                            if strain:
+                                name = '{gene}_{accession}_{allele}'.format(gene=gene,
+                                                                            accession=accession,
+                                                                            allele=allele)
+                                sample[self.analysistype].results[name] = perc_ident
+                                sample[self.analysistype].pipelineresults.append(
+                                    '{rgene} ({pid}%) {rclass}'.format(rgene=gene,
+                                                                       pid=perc_ident,
+                                                                       rclass=res))
+                                sample[self.analysistype].avgdepth[name] = fold_cov
+                    except ValueError:
+                        pass
 
     def reporter(self):
         """
@@ -535,10 +553,8 @@ class Resistance(ResSippr):
             for sample in self.runmetadata.samples:
                 # Create an attribute to store the string for the eventual pipeline report
                 sample[self.analysistype].pipelineresults = list()
-                data += sample.name + ','
                 if sample[self.analysistype].results:
-                    # If there are multiple results for a sample, don't write the name in each line of the report
-                    multiple = False
+                    results = False
                     for name, identity in sorted(sample[self.analysistype].results.items()):
                         # Extract the necessary variables from the gene name string
                         gname, genename, accession, allele = ResistanceNotes.gene_name(name)
@@ -556,30 +572,29 @@ class Resistance(ResSippr):
                             try:
                                 # Determine resistance phenotype of the gene
                                 res = ResistanceNotes.resistance(name, resistance_classes)
-                                # Treat the initial vs subsequent results for each sample slightly differently - instead
-                                # of including the sample name, use an empty cell instead
-                                if multiple:
-                                    data += ','
                                 # Populate the results
-                                data += '{},{},{},{},{},{},{}\n'.format(
-                                    res,
-                                    genename,
-                                    allele,
-                                    accession,
-                                    identity,
-                                    len(sample[self.analysistype].sequences[name]),
-                                    sample[self.analysistype].avgdepth[name])
+                                data += '{sn},{res},{gene},{allele},{accession},{identity},{length},{depth}\n'.format(
+                                    sn=sample.name,
+                                    res=res,
+                                    gene=genename,
+                                    allele=allele,
+                                    accession=accession,
+                                    identity=identity,
+                                    length=len(sample[self.analysistype].sequences[name]),
+                                    depth=sample[self.analysistype].avgdepth[name])
                                 sample[self.analysistype].pipelineresults.append(
                                     '{rgene} ({pid}%) {rclass}'.format(rgene=genename,
                                                                        pid=identity,
                                                                        rclass=res)
                                 )
-                                multiple = True
+                                results = True
                             except KeyError:
                                 pass
+                    if not results:
+                        data += '{sn}\n'.format(sn=sample.name)
                 else:
-                    data += '\n'
-            # Write the strings to the file
+                    data += '{sn}\n'.format(sn=sample.name)
+            # Write the string to the file
             report.write(data)
 
 
@@ -870,41 +885,36 @@ class Prophages(BLAST):
                         prophagedata[sample] = dict()
                         prophagedata[sample].update({header: value})
             for sample in self.metadata:
-                data += '{},'.format(sample.name)
                 # Create a set to ensure that genes are only entered into the report once
                 genes = set()
                 if sample.general.bestassemblyfile != 'NA':
                     try:
                         if sample[self.analysistype].blastlist:
-                            # Allow for formatting multiple hits for the same sample
-                            multiple = False
                             for result in sample[self.analysistype].blastlist:
                                 gene = result['subject_id']
                                 if gene not in genes:
-                                    if multiple:
-                                        data += ','
                                     # Iterate through the phage data in the dictionary
                                     for query_id, phage in prophagedata.items():
                                         if phage['id_prophage'] == gene:
                                             # Add the data to the row
-                                            data += '{},{},{},{},{},{}..{}\n' \
-                                                .format(gene,
-                                                        phage['host'],
-                                                        result['percentidentity'],
-                                                        result['alignment_fraction'] if float(
+                                            data += '{sn},{gene},{host},{ident},{cov},{contig},{start}..{stop}\n' \
+                                                .format(sn=sample.name,
+                                                        gene=gene,
+                                                        host=phage['host'],
+                                                        ident=result['percentidentity'],
+                                                        cov=result['alignment_fraction'] if float(
                                                             result['alignment_fraction']) <= 100 else '100.0',
-                                                        result['query_id'],
-                                                        result['low'],
-                                                        result['high'])
+                                                        contig=result['query_id'],
+                                                        start=result['low'],
+                                                        stop=result['high'])
                                     genes.add(gene)
                                     # Set multiple to true for any additional hits for this sample
-                                    multiple = True
                         else:
-                            data += '\n'
+                            data += '{sn}\n'.format(sn=sample.name)
                     except AttributeError:
-                        data += '\n'
+                        data += '{sn}\n'.format(sn=sample.name)
                 else:
-                    data += '\n'
+                    data += '{sn}\n'.format(sn=sample.name)
             report.write(data)
 
 
@@ -914,48 +924,47 @@ class Univec(BLAST):
         with open(os.path.join(self.reportpath, 'univec.csv'), 'w') as report:
             data = 'Strain,Gene,Description,PercentIdentity,PercentCovered,Contig,Location\n'
             for sample in self.metadata:
-                data += '{},'.format(sample.name)
                 if sample.general.bestassemblyfile != 'NA':
                     # Create a set to ensure that genes are only entered into the report once
                     genes = set()
                     try:
                         if sample[self.analysistype].blastlist:
-                            # If multiple hits are returned for a sample, don't re-add the sample name on the next row
-                            multiple = False
+                            gene_set = set()
                             for result in sample[self.analysistype].blastlist:
-                                gene = result['subject_id']
-                                # Parse the reference file in order to extract the description of the BLAST hits
-                                for entry in SeqIO.parse(sample[self.analysistype].combinedtargets, 'fasta'):
-                                    # Find the corresponding entry for the gene
-                                    if entry.id == gene:
-                                        # Cut out the description from the entry.description using regex
-                                        # e.g. for 'gnl|uv|X66730.1:1-2687-49 B.bronchiseptica plasmid pBBR1 genes for
-                                        # mobilization and replication' only save the string after '2687-49'
-                                        description = re.findall('\d+-\d+\s(.+)', entry.description)[0]
-                                        # Replace commas with semicolons
-                                        description = description.replace(',', ';')
-                                        # Don't add the same gene more than once to the report
-                                        if gene not in genes:
-                                            if multiple:
-                                                data += ','
-                                            data += '{},{},{},{},{},{}..{}\n' \
-                                                .format(gene.split('|')[-1],
-                                                        description,
-                                                        result['percentidentity'],
-                                                        result['alignment_fraction'] if float(
-                                                            result['alignment_fraction']) <= 100 else '100.0',
-                                                        result['query_id'],
-                                                        result['low'],
-                                                        result['high'])
-                                            # Allow for the proper formatting
-                                            multiple = True
-                                            genes.add(gene)
+                                gene_set.add(result['subject_id'])
+                            for gene in sorted(list(gene_set)):
+                                for result in sample[self.analysistype].blastlist:
+                                    if gene == result['subject_id']:
+                                        # Parse the reference file in order to extract the description of the BLAST hits
+                                        for entry in SeqIO.parse(sample[self.analysistype].combinedtargets, 'fasta'):
+                                            # Find the corresponding entry for the gene
+                                            if entry.id == gene:
+                                                # Cut out the description from the entry.description using regex
+                                                # e.g. 'gnl|uv|X66730.1:1-2687-49 B.bronchiseptica plasmid pBBR1 genes
+                                                # for mobilization and replication' only save the string after '2687-49'
+                                                description = re.findall('\d+-\d+\s(.+)', entry.description)[0]
+                                                # Replace commas with semicolons
+                                                description = description.replace(',', ';')
+                                                # Don't add the same gene more than once to the report
+                                                if gene not in genes:
+                                                    data += '{sn},{gene},{desc},{pi},{pc},{cont},{start}..{stop}\n' \
+                                                        .format(sn=sample.name,
+                                                                gene=gene.split('|')[-1],
+                                                                desc=description,
+                                                                pi=result['percentidentity'],
+                                                                pc=result['alignment_fraction'] if float(
+                                                                   result['alignment_fraction']) <= 100 else '100.0',
+                                                                cont=result['query_id'],
+                                                                start=result['low'],
+                                                                stop=result['high'])
+                                                    # Add the gene name to the set
+                                                    genes.add(gene)
                         else:
-                            data += '\n'
+                            data += '{sn}\n'.format(sn=sample.name)
                     except AttributeError:
-                        data += '\n'
+                        data += '{sn}\n'.format(sn=sample.name)
                 else:
-                    data += '\n'
+                    data += '{sn}\n'.format(sn=sample.name)
             report.write(data)
 
 
@@ -989,12 +998,27 @@ class Virulence(GeneSippr):
 
     def report_parse(self, vir_report):
         """
-
-        :param vir_report:
-        :return:
+        Parse and existing report, and extract the results
+        :param vir_report: type STR: Name and absolute path of the report
         """
-        # logging.error(vir_report)
-        pass
+        for sample in self.runmetadata.samples:
+            setattr(sample, self.analysistype, GenObject())
+            sample[self.analysistype].results = dict()
+            sample[self.analysistype].avgdepth = dict()
+            with open(vir_report, 'r') as report:
+                next(report)
+                for line in report:
+                    try:
+                        strain, gene, allele, description, accession, perc_ident, fold_cov = line.rstrip().split(',')
+                        if sample.name in line:
+                            if strain:
+                                name = '{gene}_{accession}_{allele}'.format(gene=gene,
+                                                                            accession=accession,
+                                                                            allele=allele)
+                                sample[self.analysistype].results[name] = perc_ident
+                                sample[self.analysistype].avgdepth[name] = fold_cov
+                    except ValueError:
+                        pass
 
     def reporter(self):
         """
@@ -1064,7 +1088,7 @@ class Virulence(GeneSippr):
                                 # accession: AF500190, subtype: d
                                 genename, allele, accession, subtype = name.split(sample[self.analysistype].delimiter)
                             elif len(name.split(sample[self.analysistype].delimiter)) == 3:
-                                # Treat samples without a subtype e.g. icaC:intercellular adhesion protein C: differently.
+                                # Treat samples no subtype e.g. icaC:intercellular adhesion protein C: differently.
                                 # Extract the allele as the 'subtype', and the gene name, and accession as above
                                 genename, subtype, accession = name.split(sample[self.analysistype].delimiter)
                             else:
@@ -1083,7 +1107,7 @@ class Virulence(GeneSippr):
                                 try:
                                     description = genedict[genename]
                                 except KeyError:
-                                    description = 'na'
+                                    description = 'ND'
                                 # Populate the results
                                 data += '{samplename},{gene},{subtype},{description},{accession},{identity},{depth}\n'\
                                     .format(samplename=sample.name,
