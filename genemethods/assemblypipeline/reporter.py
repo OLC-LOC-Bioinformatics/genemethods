@@ -30,32 +30,32 @@ class Reporter(object):
             # SamplePurity
             data += GenObject.returnattr(sample.confindr, 'contam_status')
             # N50
-            n50 = GenObject.returnattr(sample.quality_features_polished, 'n50',
+            n50 = GenObject.returnattr(sample.quast, 'N50',
                                        number=True)
             if n50 != '-,':
                 data += n50
             else:
                 data += '0,'
             # NumContigs
-            data += GenObject.returnattr(sample.quality_features_polished, 'num_contigs',
+            data += GenObject.returnattr(sample.quast, 'num_contigs',
                                          number=True)
             # TotalLength
-            data += GenObject.returnattr(sample.quality_features_polished, 'genome_length',
+            data += GenObject.returnattr(sample.quast, 'Total_length',
                                          number=True)
             # MeanInsertSize
-            data += GenObject.returnattr(sample.mapping, 'MeanInsertSize',
+            data += GenObject.returnattr(sample.quast, 'mean_insert',
                                          number=True)
             # InsertSizeSTD
-            data += GenObject.returnattr(sample.mapping, 'StdInsertSize',
+            data += GenObject.returnattr(sample.quast, 'std_insert',
                                          number=True)
             # AverageCoverageDepth
-            data += GenObject.returnattr(sample.mapping, 'MeanCoveragedata',
+            data += GenObject.returnattr(sample.qualimap, 'MeanCoveragedata',
                                          number=True)
             # CoverageDepthSTD
-            data += GenObject.returnattr(sample.mapping, 'StdCoveragedata',
+            data += GenObject.returnattr(sample.qualimap, 'StdCoveragedata',
                                          number=True)
             # PercentGC
-            data += GenObject.returnattr(sample.quality_features_polished, 'gc',
+            data += GenObject.returnattr(sample.quast, 'GC',
                                          number=True)
             # MASH_ReferenceGenome
             data += GenObject.returnattr(sample.mash, 'closestrefseq')
@@ -264,11 +264,11 @@ class Reporter(object):
         for sample in self.metadata:
             data = OrderedDict([
                 ('SampleName', sample.name),
-                ('N50', str(sample.quality_features_polished.n50)),
-                ('NumContigs', str(sample.quality_features_polished.num_contigs)),
-                ('TotalLength', str(sample.quality_features_polished.genome_length)),
-                ('MeanInsertSize', sample.mapping.MeanInsertSize),
-                ('AverageCoverageDepth', sample.mapping.MeanCoveragedata.split("X")[0]),
+                ('N50', str(sample.quast.N50)),
+                ('NumContigs', str(sample.quast.num_contigs)),
+                ('TotalLength', str(sample.quast.Total_length)),
+                ('MeanInsertSize', sample.quast.mean_insert),
+                ('AverageCoverageDepth', sample.qualimap.MeanCoveragedata.split("X")[0]),
                 ('ReferenceGenome', sample.mash.closestrefseq),
                 ('RefGenomeAlleleMatches', '-'),
                 ('16sPhylogeny', sample.sixteens_full.genus),
@@ -281,7 +281,7 @@ class Reporter(object):
                             hset=';'.join(sample.serosippr.h_set))),
                 ('geneSeekrProfile', ';'.join(result for result, pid in sorted(sample.genesippr.results.items()))),
                 ('vtyperProfile', ';'.join(sorted(sample.legacy_vtyper.toxinprofile))),
-                ('percentGC', str(sample.quality_features_polished.gc)),
+                ('percentGC', str(sample.quast.GC)),
                 ('TotalPredictedGenes', str(sample.prodigal.predictedgenestotal)),
                 ('predictedgenesover3000bp', str(sample.prodigal.predictedgenesover3000bp)),
                 ('predictedgenesover1000bp', str(sample.prodigal.predictedgenesover1000bp)),
