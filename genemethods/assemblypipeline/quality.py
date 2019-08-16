@@ -403,6 +403,7 @@ class Quality(object):
                         sample.confindr.contam_status = 'Contaminated'
                     elif sample.confindr.contam_status is False:
                         sample.confindr.contam_status = 'Clean'
+
         # Re-write the output to be consistent with the rest of the pipeline
         with open(pipeline_report, 'w') as csv:
             data = 'Strain,Genus,NumContamSNVs,ContamStatus,PercentContam,PercentContamSTD\n'

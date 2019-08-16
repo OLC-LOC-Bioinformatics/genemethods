@@ -427,7 +427,7 @@ class GeneSeekr(object):
                         else:
                             subject_length = float(row['subject_length']) / 3
                         # Calculate the percent identity and extract the bitscore from the row
-                        # Percent identity is: (length of the alignment - number of mismatches) / total subject length
+                        # Percent identity is: (# matches - # mismatches - # gaps) / total subject length
                         percentidentity = float('{:0.2f}'.format((float(row['positives']) - float(row['gaps'])) /
                                                                  subject_length * 100))
                         target = row['subject_id']
@@ -522,8 +522,9 @@ class GeneSeekr(object):
                         else:
                             subject_length = float(row['subject_length']) / 3
                         # Calculate the percent identity
-                        # Percent identity is (length of the alignment - number of mismatches) / total subject length
-                        percentidentity = float('{:0.2f}'.format((float(row['positives'])) / subject_length * 100))
+                        # Percent identity is: (# matches - # mismatches - # gaps) / total subject length
+                        percentidentity = float('{:0.2f}'.format((float(row['positives']) - float(row['gaps'])) /
+                                                                 subject_length * 100))
                         target = row['subject_id'].lstrip('gb|').rstrip('|') if '|' in row['subject_id'] else \
                             row['subject_id']
                         contig = row['query_id']

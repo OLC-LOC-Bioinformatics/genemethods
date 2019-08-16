@@ -50,7 +50,7 @@ class BLAST(object):
                                                      outfmt=self.outfmt,
                                                      evalue='1E-10',
                                                      num_threads=self.cpus,
-                                                     perc_identity=self.cutoff)
+                                                     perc_identity=99)
         elif 'sixteens' in self.analysistype:
             self.metadata = self.geneseekr.run_blast(metadata=self.metadata,
                                                      analysistype=self.analysistype,
