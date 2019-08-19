@@ -38,7 +38,10 @@ class GeneSippr(object):
                 objects.objectprep()
                 self.runmetadata = objects.samples
             # Run the analyses
-            MLSTmap(self, self.analysistype, self.cutoff)
+            MLSTmap(inputobject=self,
+                    analysistype=self.analysistype,
+                    cutoff=self.cutoff,
+                    allow_soft_clips=self.allow_soft_clips)
             # Create the reports
             self.reporter()
             # Print the metadata to a .json file
@@ -646,7 +649,8 @@ class GeneSippr(object):
                                 iterator += 1
         return report_strains
 
-    def __init__(self, args, pipelinecommit, startingtime, scriptpath, analysistype, cutoff, pipeline):
+    def __init__(self, args, pipelinecommit, startingtime, scriptpath, analysistype, cutoff, pipeline,
+                 allow_soft_clips=False):
         """
         :param args: command line arguments
         :param pipelinecommit: pipeline commit or version
@@ -655,6 +659,7 @@ class GeneSippr(object):
         :param analysistype: name of the analysis being performed - allows the program to find databases
         :param cutoff: percent identity cutoff for matches
         :param pipeline: boolean of whether this script needs to run as part of a particular assembly pipeline
+        :param allow_soft_clips: Boolean whether the BAM parsing should exclude sequences with internal soft clips
         """
         # Initialise variables
         self.commit = str(pipelinecommit)
@@ -745,6 +750,7 @@ class GeneSippr(object):
         self.taxonomy = {'Escherichia': 'coli', 'Listeria': 'monocytogenes', 'Salmonella': 'enterica'}
         #
         self.pipeline = pipeline
+        self.allow_soft_clips = allow_soft_clips
         if analysistype.lower() == 'mlst':
             self.analysistype = 'mlst'
         elif analysistype.lower() == 'rmlst':
@@ -833,6 +839,12 @@ if __name__ == '__main__':
                         action='store_true',
                         help='Normally, the program will create symbolic links of the files into the sequence path, '
                              'however, the are occasions when it is necessary to copy the files instead')
+    parser.add_argument('-sc', '--allow_soft_clips',
+                        action='store_true',
+                        default=False,
+                        help='Do not discard sequences if internal soft clips are present. Default is False, as this '
+                             'is usually best for removing false positive matches, but sometimes it is necessary to '
+                             'disable this functionality')
     SetupLogging()
     # Get the arguments into an object
     arguments = parser.parse_args()
@@ -848,7 +860,8 @@ if __name__ == '__main__':
                            scriptpath=homepath,
                            analysistype=arguments.analysistype,
                            cutoff=arguments.customcutoffs,
-                           pipeline=arguments.pipeline)
+                           pipeline=arguments.pipeline,
+                           allow_soft_clips=arguments.allow_soft_clips)
     mlst_sippr.runner()
     # Print an exit statement
     logging.info('Analyses complete')

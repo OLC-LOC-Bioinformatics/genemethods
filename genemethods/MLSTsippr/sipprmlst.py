@@ -86,7 +86,7 @@ class MLSTmap(Sippr):
                                                                      '{}_targetMatches.fastq.gz'
                                                                      .format(self.analysistype))
 
-    def __init__(self, inputobject, analysistype, cutoff):
+    def __init__(self, inputobject, analysistype, cutoff, allow_soft_clips=False):
         self.analysistype = analysistype
         self.targetpath = inputobject.targetpath
         self.profileset = set()
@@ -94,4 +94,8 @@ class MLSTmap(Sippr):
         self.pipeline = inputobject.pipeline
         self.copy = inputobject.copy
         self.logfile = inputobject.logfile
-        Sippr.__init__(self, inputobject, cutoff)
+        self.allow_soft_clips = allow_soft_clips
+        Sippr.__init__(self,
+                       inputobject=inputobject,
+                       cutoff=cutoff,
+                       allow_soft_clips=allow_soft_clips)

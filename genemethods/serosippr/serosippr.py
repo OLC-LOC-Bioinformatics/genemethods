@@ -3,8 +3,9 @@ from olctools.accessoryFunctions.accessoryFunctions import MetadataObject, make_
 import olctools.accessoryFunctions.metadataprinter as metadataprinter
 from genemethods.sipprCommon.objectprep import Objectprep
 from genemethods.sipprCommon.sippingmethods import Sippr
-import operator
+import multiprocessing
 import subprocess
+import operator
 import logging
 import time
 import os
@@ -19,7 +20,9 @@ class SeroSippr(object):
         """
         logging.info('Starting {} analysis pipeline'.format(self.analysistype))
         # Run the analyses
-        Sippr(self, self.cutoff)
+        Sippr(inputobject=self,
+              cutoff=self.cutoff,
+              allow_soft_clips=self.allow_soft_clips)
         self.serotype_escherichia()
         self.serotype_salmonella()
         # Create the reports
@@ -117,7 +120,8 @@ class SeroSippr(object):
                     pass
                     # print('Salmonella', sample.name, sample[self.analysistype].datastore)
 
-    def __init__(self, args, pipelinecommit, startingtime, scriptpath, analysistype, cutoff, pipeline):
+    def __init__(self, args, pipelinecommit, startingtime, scriptpath, analysistype, cutoff, pipeline,
+                 allow_soft_clips=False):
         """
         :param args: command line arguments
         :param pipelinecommit: pipeline commit or version
@@ -126,8 +130,8 @@ class SeroSippr(object):
         :param analysistype: name of the analysis being performed - allows the program to find databases
         :param cutoff: percent identity cutoff for matches
         :param pipeline: boolean of whether this script needs to run as part of a particular assembly pipeline
+        :param allow_soft_clips: Boolean whether the BAM parsing should exclude sequences with internal soft clips
         """
-        import multiprocessing
         # Initialise variables
         self.commit = str(pipelinecommit)
         self.starttime = startingtime
@@ -190,6 +194,7 @@ class SeroSippr(object):
         except AttributeError:
             self.copy = False
         self.pipeline = pipeline
+        self.allow_soft_clips = allow_soft_clips
         if not self.pipeline:
             self.runmetadata = MetadataObject()
             # Create the objects to be used in the analyses
@@ -271,6 +276,12 @@ if __name__ == '__main__':
     parser.add_argument('-u', '--cutoff',
                         default=0.8,
                         help='Custom cutoff values')
+    parser.add_argument('-sc', '--allow_soft_clips',
+                        action='store_true',
+                        default=False,
+                        help='Do not discard sequences if internal soft clips are present. Default is False, as this '
+                             'is usually best for removing false positive matches, but sometimes it is necessary to '
+                             'disable this functionality')
     SetupLogging()
     # Get the arguments into an object
     arguments = parser.parse_args()
@@ -280,7 +291,14 @@ if __name__ == '__main__':
     start = time.time()
 
     # Run the script
-    SeroSippr(arguments, commit, start, homepath, 'serosippr', arguments.cutoff, arguments.pipeline)
+    SeroSippr(args=arguments,
+              pipelinecommit=commit,
+              startingtime=start,
+              scriptpath=homepath,
+              analysistype='serosippr',
+              cutoff=arguments.cutoff,
+              pipeline=arguments.pipeline,
+              allow_soft_clips=arguments.allow_soft_clips)
 
     # Print a bold, green exit statement
     print('\033[92m' + '\033[1m' + "\nElapsed Time: %0.2f seconds" % (time.time() - start) + '\033[0m')

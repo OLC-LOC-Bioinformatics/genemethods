@@ -30,7 +30,8 @@ class PointSippr(GeneSippr):
                 sample[self.analysistype].pointfindergenus = 'ND'
         # Run the raw read mapping
         PointSipping(inputobject=self,
-                     cutoff=self.cutoff)
+                     cutoff=self.cutoff,
+                     allow_soft_clips=self.allow_soft_clips)
         # Create FASTA files from the raw read matcves
         self.fasta()
         # Run PointFinder on the FASTA files
@@ -402,7 +403,8 @@ class PointSippr(GeneSippr):
                     summary.write(header_string)
                 summary.write(summary_string)
 
-    def __init__(self, args, pipelinecommit, startingtime, scriptpath, analysistype, cutoff, pipeline, revbait):
+    def __init__(self, args, pipelinecommit, startingtime, scriptpath, analysistype, cutoff, pipeline, revbait,
+                 allow_soft_clips=False):
         # Dictionary to convert the mash-calculated genus to the pointfinder format
         self.pointfinder_org_dict = {'Campylobacter': 'campylobacter',
                                      'Escherichia': 'e.coli',
@@ -418,7 +420,15 @@ class PointSippr(GeneSippr):
                              'salmonella': 'Salmonella'}
         self.summary_dict = dict()
         self.queue = Queue(maxsize=args.cpus)
-        super().__init__(args, pipelinecommit, startingtime, scriptpath, analysistype, cutoff, pipeline, revbait)
+        super().__init__(args=args,
+                         pipelinecommit=pipelinecommit,
+                         startingtime=startingtime,
+                         scriptpath=scriptpath,
+                         analysistype=analysistype,
+                         cutoff=cutoff,
+                         pipeline=pipeline,
+                         revbait=revbait,
+                         allow_soft_clips=allow_soft_clips)
 
 
 class PointSipping(Sippr):
@@ -466,6 +476,7 @@ class PointSipping(Sippr):
                 os.path.join(sample[self.analysistype].outputdir,
                              '{at}_targetMatches.fastq.gz'.format(at=self.analysistype))
 
-    def __init__(self, inputobject, cutoff):
+    def __init__(self, inputobject, cutoff, allow_soft_clips=False):
         super().__init__(inputobject=inputobject,
-                         cutoff=cutoff)
+                         cutoff=cutoff,
+                         allow_soft_clips=allow_soft_clips)

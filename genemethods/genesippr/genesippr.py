@@ -31,22 +31,26 @@ class GeneSippr(object):
                 objects.objectprep()
                 self.runmetadata = objects.samples
         # Run the analyses
-        Sippr(self, self.cutoff)
+        Sippr(inputobject=self,
+              cutoff=self.cutoff,
+              allow_soft_clips=self.allow_soft_clips)
         # Create the reports
         reports = Reports(self)
         Reports.reporter(reports, analysistype=self.analysistype)
         # Print the metadata
         MetadataPrinter(self)
 
-    def __init__(self, args, pipelinecommit, startingtime, scriptpath, analysistype, cutoff, pipeline, revbait):
+    def __init__(self, args, pipelinecommit, startingtime, scriptpath, analysistype, cutoff, pipeline, revbait,
+                 allow_soft_clips=False):
         """
         :param args: command line arguments
         :param pipelinecommit: pipeline commit or version
         :param startingtime: time the script was started
         :param scriptpath: home path of the script
         :param analysistype: name of the analysis being performed - allows the program to find databases
-        :param cutoff: percent identity cutoff for matches
+        :param cutoff: percent identity cutoff for matche5
         :param pipeline: boolean of whether this script needs to run as part of a particular assembly pipeline
+        :param allow_soft_clips: Boolean whether the BAM parsing should exclude sequences with internal soft clips
         """
         # Initialise variables
         self.commit = str(pipelinecommit)
@@ -126,6 +130,7 @@ class GeneSippr(object):
         self.analysistype = analysistype
         self.pipeline = pipeline
         self.revbait = revbait
+        self.allow_soft_clips = allow_soft_clips
         # Run the analyses
         self.runner()
 

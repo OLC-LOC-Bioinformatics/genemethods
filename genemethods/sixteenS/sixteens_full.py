@@ -148,7 +148,9 @@ class SixteenS(object):
         self.blastparse()
         # Feed the BLAST results into a modified sippr method to perform reference mapping using the calculated
         # genus of the sample as the mapping file
-        SixteenSSipper(self, self.cutoff)
+        SixteenSSipper(inputobject=self,
+                       cutoff=self.cutoff,
+                       allow_soft_clips=self.allow_soft_clips)
         # Create reports
         self.reporter()
 
@@ -468,7 +470,7 @@ class SixteenS(object):
             if not hasattr(sample[self.analysistype], 'sixteens_match') or not sample[self.analysistype].sixteens_match:
                 sample[self.analysistype].sixteens_match = 'ND'
 
-    def __init__(self, args, pipelinecommit, startingtime, scriptpath, analysistype, cutoff):
+    def __init__(self, args, pipelinecommit, startingtime, scriptpath, analysistype, cutoff, allow_soft_clips=False):
         """
         :param args: command line arguments
         :param pipelinecommit: pipeline commit or version
@@ -476,6 +478,7 @@ class SixteenS(object):
         :param scriptpath: home path of the script
         :param analysistype: name of the analysis being performed - allows the program to find databases
         :param cutoff: percent identity cutoff for matches
+        :param allow_soft_clips: Boolean whether the BAM parsing should exclude sequences with internal soft clips
         """
         # Initialise variables
         self.commit = str(pipelinecommit)
@@ -550,6 +553,7 @@ class SixteenS(object):
         except AttributeError:
             self.copy = False
         self.revbait = True
+        self.allow_soft_clips = allow_soft_clips
         self.devnull = open(os.path.devnull, 'w')
         self.samplequeue = Queue(maxsize=self.cpus)
         self.fastaqueue = Queue(maxsize=self.cpus)

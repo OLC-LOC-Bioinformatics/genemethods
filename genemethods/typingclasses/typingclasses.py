@@ -390,10 +390,13 @@ class ResSippr(GeneSippr):
                 objects.objectprep()
                 self.runmetadata = objects.samples
         # Run the analyses
-        ShortKSippingMethods(self, self.cutoff)
+        ShortKSippingMethods(inputobject=self,
+                             cutoff=self.cutoff,
+                             allow_soft_clips=self.allow_soft_clips)
 
     # noinspection PyMissingConstructor
-    def __init__(self, args, pipelinecommit, startingtime, scriptpath, analysistype, cutoff, pipeline, revbait):
+    def __init__(self, args, pipelinecommit, startingtime, scriptpath, analysistype, cutoff, pipeline, revbait,
+                 allow_soft_clips=False):
         """
         :param args: command line arguments
         :param pipelinecommit: pipeline commit or version
@@ -402,6 +405,7 @@ class ResSippr(GeneSippr):
         :param analysistype: name of the analysis being performed - allows the program to find databases
         :param cutoff: percent identity cutoff for matches
         :param pipeline: boolean of whether this script needs to run as part of a particular assembly pipeline
+        :param allow_soft_clips: Boolean whether the BAM parsing should exclude sequences with internal soft clips
         """
         # Initialise variables
         # super().__init__(args, pipelinecommit, startingtime, scriptpath, analysistype, cutoff, pipeline, revbait)
@@ -476,6 +480,7 @@ class ResSippr(GeneSippr):
         self.analysistype = analysistype
         self.pipeline = pipeline
         self.revbait = revbait
+        self.allow_soft_clips = allow_soft_clips
 
 
 class Resistance(ResSippr):
