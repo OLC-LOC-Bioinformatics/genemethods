@@ -25,10 +25,11 @@ class AssemblyEvaluation(object):
         """
         Run the methods in the correct order
         """
+        self.bowtie_build()
+        self.bowtie_run()
+        self.indexing()
         self.quast()
         self.parse_quast_report()
-        self.sort_bam()
-        self.indexing()
         self.qualimapper()
         self.parse_qualimap_report()
         self.clean_quast()
@@ -38,40 +39,63 @@ class AssemblyEvaluation(object):
         self.filter()
         self.clear()
 
-    def quast(self):
+    def bowtie_build(self):
         """
-        Run quast on the samples
+        Use bowtie2-build to index each target file
         """
-        logging.info('Running Quast on assemblies')
+        logging.info('Preparing targets for reference mapping')
         with progressbar(self.metadata) as bar:
             for sample in bar:
                 # Create and populate the quast GenObject
                 sample.quast = GenObject()
+                sample.quast.base_name = os.path.splitext(sample.general.assemblyfile)[0]
+                sample.quast.build_command = 'bowtie2-build {target} {base}'.format(target=sample.general.assemblyfile,
+                                                                                    base=sample.quast.base_name)
+                if not os.path.isfile('{base}.1.bt2'.format(base=sample.quast.base_name)):
+                    out, err = run_subprocess(sample.quast.build_command)
+                    # Write the appropriate information to the logfile
+                    write_to_logfile(out='{cmd}\n{out}'.format(cmd=sample.quast.build_command,
+                                                               out=out),
+                                     err=err,
+                                     logfile=self.logfile,
+                                     samplelog=sample.general.logout,
+                                     sampleerr=sample.general.logerr,
+                                     analysislog=None,
+                                     analysiserr=None)
+
+    def bowtie_run(self):
+        """
+        Map the FASTQ reads against the appropriate target file
+        """
+        logging.info('Performing reference mapping for quality evaluation')
+        with progressbar(self.metadata) as bar:
+            for sample in bar:
                 sample.quast.outputdir = os.path.join(sample.general.outputdirectory, 'quast')
-                sample.quast.report = os.path.join(sample.quast.outputdir, 'report.tsv')
                 if sample.general.bestassemblyfile != "NA":
                     make_path(sample.quast.outputdir)
-                    # Allow for non-paired samples
-                    if len(sample.general.trimmedcorrectedfastqfiles) == 2:
-                        sample.quast.cmd = 'quast --pe1 {forward} --pe2 {reverse}'\
-                            .format(forward=sample.general.trimmedcorrectedfastqfiles[0],
-                                    reverse=sample.general.trimmedcorrectedfastqfiles[1])
-                    else:
-                        sample.quast.cmd = 'quast --single {single}'\
-                            .format(single=sample.general.trimmedcorrectedfastqfiles[0])
-                    # Both paired and unpaired samples share the rest of the system call
-                    # --debug is specified, as certain temporary files are either used for downstream analyses
-                    # (BAM file), or parsed (insert size estimation)
-                    sample.quast.cmd += ' -t {threads} --k-mer-stats --circos --rna-finding ' \
-                                        '--conserved-genes-finding -o {outputdir} --debug {assembly}'\
+                    sample.quast.sortedbam = os.path.join(sample.quast.outputdir, '{sn}_sorted.bam'
+                                                          .format(sn=sample.name))
+                    # Bowtie2 command piped to samtools view to convert data to BAM format piped to samtools sort to
+                    # sort the BAM file
+                    sample.quast.map_command = 'bowtie2 -x {base}' \
+                        .format(base=sample.quast.base_name)
+
+                    sample.quast.map_command += ' -U {reads}'\
+                        .format(reads=sample.general.trimmedcorrectedfastqfiles[0]) \
+                        if len(sample.general.trimmedcorrectedfastqfiles) == 1 \
+                        else ' -1 {forward} -2 {reverse}'.format(forward=sample.general.trimmedcorrectedfastqfiles[0],
+                                                                 reverse=sample.general.trimmedcorrectedfastqfiles[1])
+                    sample.quast.map_command += ' -p {threads} | ' \
+                                                'samtools view -@ {threads} -h -F 4 -bT {target} - | ' \
+                                                'samtools sort - -@ {threads} -o {sortedbam}'\
                         .format(threads=self.cpus,
-                                outputdir=sample.quast.outputdir,
-                                assembly=sample.general.assemblyfile)
-                    # Run the quast system call if the final quast report doesn't already exist
-                    if not os.path.isfile(sample.quast.report):
-                        out, err = run_subprocess(sample.quast.cmd)
+                                target=sample.general.assemblyfile,
+                                sortedbam=sample.quast.sortedbam)
+                    # Run the mapping command if the sorted BAM file doesn't already exist
+                    if not os.path.isfile(sample.quast.sortedbam):
+                        out, err = run_subprocess(sample.quast.map_command)
                         # Write the appropriate information to the logfile
-                        write_to_logfile(out='{cmd}\n{out}'.format(cmd=sample.quast.cmd,
+                        write_to_logfile(out='{cmd}\n{out}'.format(cmd=sample.quast.map_command,
                                                                    out=out),
                                          err=err,
                                          logfile=self.logfile,
@@ -79,53 +103,6 @@ class AssemblyEvaluation(object):
                                          sampleerr=sample.general.logerr,
                                          analysislog=None,
                                          analysiserr=None)
-
-    def parse_quast_report(self):
-        """
-        Parse the quast report, and populate the metadata object with the extracted key: value pairs
-        """
-        for sample in self.metadata:
-            if os.path.isfile(sample.quast.report):
-                # Read in the report
-                with open(sample.quast.report, 'r') as quast_report:
-                    for line in quast_report:
-                        # Sanitise the tab-delimited key: value pairs
-                        key, value = self.analyze(line)
-                        # Use the sanitised pair to populate the metadata object
-                        setattr(sample.quast, key, value)
-
-    def sort_bam(self):
-        """
-        Use samtools sort to sort the BAM files created by quast
-        """
-        logging.info('Sorting BAM files')
-        with progressbar(self.metadata) as bar:
-            for sample in bar:
-                sample.quast.sortedbam = os.path.join(sample.quast.outputdir, '{sn}_sorted.bam'
-                                                      .format(sn=sample.name))
-                if sample.general.bestassemblyfile != 'NA' and not os.path.isfile(sample.quast.sortedbam):
-                    try:
-                        sample.quast.unfilteredbam = glob(os.path.join(sample.quast.outputdir, 'reads_stats',
-                                                                       'temp_output', '*_unfiltered.bam'))[0]
-                        sample.quast.samtools_sort_cmd = 'samtools sort --output-fmt BAM --reference {reference} ' \
-                                                         '-@ {threads} -o {output} {input}'\
-                            .format(reference=sample.general.assemblyfile,
-                                    threads=self.cpus,
-                                    output=sample.quast.sortedbam,
-                                    input=sample.quast.unfilteredbam)
-                        if not os.path.isfile(sample.quast.sortedbam):
-                            out, err = run_subprocess(command=sample.quast.samtools_sort_cmd)
-                            write_to_logfile(out='{cmd}\n{out}'.format(cmd=sample.quast.samtools_sort_cmd,
-                                                                       out=out),
-                                             err=err,
-                                             logfile=self.logfile,
-                                             samplelog=sample.general.logout,
-                                             sampleerr=sample.general.logerr,
-                                             analysislog=None,
-                                             analysiserr=None)
-                    except IndexError:
-                        sample.quast.sortedbam = 'ND'
-                        sample.quast.samtools_sort_cmd = str()
 
     def indexing(self):
         """
@@ -163,6 +140,60 @@ class AssemblyEvaluation(object):
             except ApplicationError:
                 pass
             self.indexqueue.task_done()
+
+    def quast(self):
+        """
+        Run quast on the samples
+        """
+        logging.info('Running Quast on assemblies')
+        with progressbar(self.metadata) as bar:
+            for sample in bar:
+                # Populate necessary attributes
+                sample.quast.report = os.path.join(sample.quast.outputdir, 'report.tsv')
+                if sample.general.bestassemblyfile != "NA":
+                    # Allow for non-paired samples
+                    if len(sample.general.trimmedcorrectedfastqfiles) == 2:
+                        sample.quast.cmd = 'quast --pe1 {forward} --pe2 {reverse}'\
+                            .format(forward=sample.general.trimmedcorrectedfastqfiles[0],
+                                    reverse=sample.general.trimmedcorrectedfastqfiles[1])
+                    else:
+                        sample.quast.cmd = 'quast --single {single}'\
+                            .format(single=sample.general.trimmedcorrectedfastqfiles[0])
+                    # Both paired and unpaired samples share the rest of the system call
+                    # --debug is specified, as certain temporary files are either used for downstream analyses
+                    # (BAM file), or parsed (insert size estimation)
+                    sample.quast.cmd += ' --ref-bam {bam} -t {threads} --k-mer-stats --circos --rna-finding ' \
+                                        '--conserved-genes-finding -o {outputdir} --debug {assembly}'\
+                        .format(bam=sample.quast.sortedbam,
+                                threads=self.cpus,
+                                outputdir=sample.quast.outputdir,
+                                assembly=sample.general.assemblyfile)
+                    # Run the quast system call if the final quast report doesn't already exist
+                    if not os.path.isfile(sample.quast.report):
+                        out, err = run_subprocess(sample.quast.cmd)
+                        # Write the appropriate information to the logfile
+                        write_to_logfile(out='{cmd}\n{out}'.format(cmd=sample.quast.cmd,
+                                                                   out=out),
+                                         err=err,
+                                         logfile=self.logfile,
+                                         samplelog=sample.general.logout,
+                                         sampleerr=sample.general.logerr,
+                                         analysislog=None,
+                                         analysiserr=None)
+
+    def parse_quast_report(self):
+        """
+        Parse the quast report, and populate the metadata object with the extracted key: value pairs
+        """
+        for sample in self.metadata:
+            if os.path.isfile(sample.quast.report):
+                # Read in the report
+                with open(sample.quast.report, 'r') as quast_report:
+                    for line in quast_report:
+                        # Sanitise the tab-delimited key: value pairs
+                        key, value = self.analyze(line)
+                        # Use the sanitised pair to populate the metadata object
+                        setattr(sample.quast, key, value)
 
     def clean_quast(self):
         """
@@ -289,14 +320,8 @@ class AssemblyEvaluation(object):
                 # If the report file doesn't exist, run Qualimap, and print logs to the log file
                 if not os.path.isfile(sample.qualimap.reportfile):
                     out, err = run_subprocess(sample.commands.qualimap)
-                    write_to_logfile(out=sample.commands.qualimap,
-                                     err=sample.commands.qualimap,
-                                     logfile=self.logfile,
-                                     samplelog=sample.general.logout,
-                                     sampleerr=sample.general.logerr,
-                                     analysislog=None,
-                                     analysiserr=None)
-                    write_to_logfile(out=out,
+                    write_to_logfile(out='{cmd}\n{out}'.format(cmd=sample.commands.qualimap,
+                                                               out=out),
                                      err=err,
                                      logfile=self.logfile,
                                      samplelog=sample.general.logout,
