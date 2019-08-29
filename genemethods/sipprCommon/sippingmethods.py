@@ -326,11 +326,15 @@ class Sippr(object):
                             map(StringIO, bowtie2build(cwd=sample[self.analysistype].targetpath))
                         # Write any error to a log file
                         if stderrbowtieindex:
-                            # Write the standard error to log, bowtie2 puts alignment summary here
-                            with open(os.path.join(sample[self.analysistype].targetpath,
-                                                   '{at}_bowtie_index.log'.format(at=self.analysistype)), 'w') as log:
-                                log.writelines(logstr(bowtie2build, stderrbowtieindex.getvalue(),
-                                                      stdoutbowtieindex.getvalue()))
+                            try:
+                                # Write the standard error to log, bowtie2 puts alignment summary here
+                                with open(os.path.join(sample[self.analysistype].targetpath,
+                                                       '{at}_bowtie_index.log'.format(at=self.analysistype)), 'w') \
+                                        as log:
+                                    log.writelines(logstr(bowtie2build, stderrbowtieindex.getvalue(),
+                                                          stdoutbowtieindex.getvalue()))
+                            except PermissionError:
+                                pass
                         # Close the stdout and stderr streams
                         stdoutbowtieindex.close()
                         stderrbowtieindex.close()
@@ -350,9 +354,12 @@ class Sippr(object):
                     # Write any error to a log file
                     if stderrindex:
                         # Write the standard error to log, bowtie2 puts alignment summary here
-                        with open(os.path.join(sample[self.analysistype].targetpath,
-                                               '{at}_samtools_index.log'.format(at=self.analysistype)), 'w') as log:
-                            log.writelines(logstr(samindex, stderrindex.getvalue(), stdoutindex.getvalue()))
+                        try:
+                            with open(os.path.join(sample[self.analysistype].targetpath,
+                                                   '{at}_samtools_index.log'.format(at=self.analysistype)), 'w') as log:
+                                log.writelines(logstr(samindex, stderrindex.getvalue(), stdoutindex.getvalue()))
+                        except PermissionError:
+                            pass
                     # Close the stdout and stderr streams
                     stdoutindex.close()
                     stderrindex.close()
@@ -361,10 +368,14 @@ class Sippr(object):
                     # Set stdout to a stringIO stream
                     stdout, stderr = map(StringIO, bowtie2align(cwd=sample[self.analysistype].outputdir))
                     if stderr:
-                        # Write the standard error to log, bowtie2 puts alignment summary here
-                        with open(os.path.join(sample[self.analysistype].outputdir,
-                                               '{at}_bowtie_samtools.log'.format(at=self.analysistype)), 'a+') as log:
-                            log.writelines(logstr([bowtie2align], stderr.getvalue(), stdout.getvalue()))
+                        try:
+                            # Write the standard error to log, bowtie2 puts alignment summary here
+                            with open(os.path.join(sample[self.analysistype].outputdir,
+                                                   '{at}_bowtie_samtools.log'.format(at=self.analysistype)), 'a+') \
+                                    as log:
+                                log.writelines(logstr([bowtie2align], stderr.getvalue(), stdout.getvalue()))
+                        except PermissionError:
+                            pass
                     stdout.close()
                     stderr.close()
             except ApplicationError:
@@ -397,10 +408,13 @@ class Sippr(object):
                     # Use cStringIO streams to handle bowtie output
                     stdout, stderr = map(StringIO, bamindex(cwd=sample[self.analysistype].outputdir))
                     if stderr:
-                        # Write the standard error to log
-                        with open(os.path.join(sample[self.analysistype].outputdir, '{at}_samtools_bam_index.log'
-                                  .format(at=self.analysistype)), 'a+') as log:
-                            log.writelines(logstr(bamindex, stderr.getvalue(), stdout.getvalue()))
+                        try:
+                            # Write the standard error to log
+                            with open(os.path.join(sample[self.analysistype].outputdir, '{at}_samtools_bam_index.log'
+                                      .format(at=self.analysistype)), 'a+') as log:
+                                log.writelines(logstr(bamindex, stderr.getvalue(), stdout.getvalue()))
+                        except PermissionError:
+                            pass
                     stderr.close()
             except ApplicationError:
                 pass
