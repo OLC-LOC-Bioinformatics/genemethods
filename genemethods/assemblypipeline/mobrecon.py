@@ -116,13 +116,18 @@ class MobRecon(object):
                 # Initialise a dictionary to store results for the COWBAT final report
                 sample[self.analysistype].pipelineresults = dict()
                 for primarykey, results in sample[self.analysistype].report_dict.items():
+                    # MOB suite 2.0.0 has different output?
+                    try:
+                        contig = results['contig_id'].split('|')[1]
+                    except IndexError:
+                        contig = results['contig_id']
                     # Only process results if they are not calculated to be chromosomal
                     if results['cluster_id'] != 'chromosome':
                         data += ','.join(str(result).replace(',', ';') if str(result) != 'nan' else 'ND'
                                          for result in [
                                              sample.name,
                                              results['cluster_id'],
-                                             results['contig_id'].split('|')[1],
+                                             contig,
                                              results['rep_type'],
                                              results['rep_type_accession'],
                                              results['relaxase_type'],
