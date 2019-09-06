@@ -172,7 +172,11 @@ class MobRecon(object):
                 #
                 for primarykey, results in sample[self.analysistype].report_dict.items():
                     try:
-                        contig = results['contig_id'].split('|')[1]
+                        # MOB suite 2.0.0 has different output?
+                        try:
+                            contig = results['contig_id'].split('|')[1]
+                        except IndexError:
+                            contig = results['contig_id']
                         # Unicycler gives contigs names such as: 3_length=187116_depth=1.60x_circular=true - test
                         # to see if the contig name looks unicycler-like, and set the name appropriately (in this
                         # case, it would be 3)
