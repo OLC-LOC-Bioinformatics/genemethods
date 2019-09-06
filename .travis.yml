@@ -10,7 +10,7 @@ before_install:
   - conda update -q conda
   - conda config --add channels conda-forge
   - conda config --add channels bioconda
-  - conda install -c olcbioinformatics genemethods
+  - conda install -c olcbioinformatics genemethods=0.0.0.19=py_0
 
 script:
   - pytest tests/test_imports.py -s -vv --maxfail=1
