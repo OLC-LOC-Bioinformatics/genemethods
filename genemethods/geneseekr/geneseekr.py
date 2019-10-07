@@ -16,6 +16,7 @@ from glob import glob
 import xlsxwriter
 import operator
 import logging
+import psutil
 import shutil
 import json
 import csv
@@ -26,6 +27,38 @@ __author__ = 'adamkoziol'
 
 
 class GeneSeekr(object):
+
+    @staticmethod
+    def filter_db(metadata, analysistype, cpus=12):
+        """
+        Filter large allele databases with bbduk. Store only the alleles that match the target sequence prior to running
+        very large BLAST analyses
+        :param metadata: Metadata object
+        :param analysistype: Name of analysis type
+        :param cpus: Number of threads to use for baiting
+        """
+        # Define memory to use (bbduk can sometimes fail to detect system memory properly)
+        mem = int(0.85 * float(psutil.virtual_memory().total))
+        for sample in metadata:
+            # Set the name and absolute path of the baited targets file
+            outfile = os.path.join(sample[analysistype].reportdir, '{sn}_{at}_baitedtargets.fa'.format(sn=sample.name,
+                                                                                                       at=analysistype))
+            # Define the system call to bbduk
+            sample[analysistype].bbdukcmd = \
+                'bbduk.sh -Xmx{mem} ref={ref} in={in1} k=31 threads={cpus} mincovfraction=0.99 ' \
+                'maskmiddle=f outm={outm}'\
+                .format(mem=mem,
+                        ref=sample.general.bestassemblyfile,
+                        in1=sample[analysistype].combinedtargets,
+                        cpus=str(cpus),
+                        outm=outfile)
+            # Run the system call (if necessary)
+            if not os.path.isfile(outfile):
+                run_subprocess(sample[analysistype].bbdukcmd)
+            # If the command ran successfully, update the attribute for the combined targets file to point to the new
+            # baited target file
+            if os.path.isfile(outfile):
+                sample[analysistype].combinedtargets = outfile
 
     @staticmethod
     def makeblastdb(fasta, program='blastn', returncmd=False, **kwargs):
@@ -354,6 +387,8 @@ class GeneSeekr(object):
                         # Remove unwanted pipes added to the name
                         target = row['subject_id'].lstrip('gb|').rstrip('|') if '|' in row['subject_id'] else \
                             row['subject_id']
+                        row['subject_id'] = row['subject_id'].lstrip('gb|').rstrip('|') if '|' in row['subject_id'] else \
+                            row['subject_id']
                         # If the percent identity is greater than the cutoff
                         if percentidentity >= cutoff:
                             # Append the hit dictionary to the list
@@ -430,6 +465,9 @@ class GeneSeekr(object):
                         # Percent identity is: (# matches - # mismatches - # gaps) / total subject length
                         percentidentity = float('{:0.2f}'.format((float(row['positives']) - float(row['gaps'])) /
                                                                  subject_length * 100))
+                        # Remove unwanted pipes added to the name
+                        row['subject_id'] = row['subject_id'].lstrip('gb|').rstrip('|') if '|' in row['subject_id'] else \
+                            row['subject_id']
                         target = row['subject_id']
                         # Extract the genus name. Use the subject id as a key in the dict of the reference db.
                         # It will return the record e.g. gi|1018196593|ref|NR_136472.1| Escherichia marmotae
@@ -627,6 +665,9 @@ class GeneSeekr(object):
                         # Extract the BLAST result dictionary for the contig
                         for row in sample[analysistype].results[contig]:
                             # Initialise variable to reduce the number of times row['value'] needs to be typed
+                            # Remove unwanted pipes added to the name
+                            row['subject_id'] = row['subject_id'].lstrip('gb|').rstrip('|') if '|' in row['subject_id'] else \
+                            row['subject_id']
                             contig = row['query_id']
                             high = row['high']
                             low = row['low']

@@ -60,6 +60,11 @@ class SixteenSBait(Sippr):
                                                                      '{at}_targetMatches.fastq'
                                                                      .format(at=self.analysistype))
                 sample[self.analysistype].complete = False
+            else:
+                sample[self.analysistype].runanalysis = False
+                sample[self.analysistype].targetpath = self.targetpath
+                sample[self.analysistype].outputdir = 'NA'
+                sample.run.outputdirectory = 'NA'
 
 
 class SixteenSSipper(Sippr):

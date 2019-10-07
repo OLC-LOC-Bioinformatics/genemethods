@@ -3,12 +3,13 @@ from olctools.accessoryFunctions.accessoryFunctions import GenObject
 from datetime import datetime
 import logging
 import os
+
 __author__ = 'adamkoziol'
 
 
 class Reporter(object):
 
-    def reporter(self):
+    def metadata_reporter(self):
         """
         Creates the metadata report by pulling specific attributes from the metadata objects
         """
@@ -23,10 +24,6 @@ class Reporter(object):
             data += GenObject.returnattr(sample.run, 'SamplePlate')
             # Genus
             data += GenObject.returnattr(sample.general, 'closestrefseqgenus')
-            # SequencingDate
-            data += GenObject.returnattr(sample.run, 'Date')
-            # Analyst
-            data += GenObject.returnattr(sample.run, 'InvestigatorName')
             # SamplePurity
             data += GenObject.returnattr(sample.confindr, 'contam_status')
             # N50
@@ -63,14 +60,16 @@ class Reporter(object):
             data += GenObject.returnattr(sample.mash, 'nummatches')
             # 16S_result
             data += GenObject.returnattr(sample.sixteens_full, 'sixteens_match')
+            # CoreGenesPresent
+            data += GenObject.returnattr(sample.gdcs, 'coreresults')
             # rMLST_Result
             try:
                 # If the number of matches to the closest reference profile is 53, return the profile number
-                if sample.rmlst_assembled.matches == 53:
-                    if type(sample.rmlst_assembled.sequencetype) is list:
-                        rmlst_seq_type = ';'.join(sorted(sample.rmlst_assembled.sequencetype)).rstrip(';') + ','
+                if sample.rmlst.matches == 53:
+                    if type(sample.rmlst.sequencetype) is list:
+                        rmlst_seq_type = ';'.join(sorted(sample.rmlst.sequencetype)).rstrip(';') + ','
                     else:
-                        rmlst_seq_type = GenObject.returnattr(sample.rmlst_assembled, 'sequencetype')
+                        rmlst_seq_type = GenObject.returnattr(sample.rmlst, 'sequencetype')
                         rmlst_seq_type = rmlst_seq_type if rmlst_seq_type != 'ND,' else 'new,'
                     data += rmlst_seq_type
                 else:
@@ -78,6 +77,20 @@ class Reporter(object):
                     data += 'new,'
             except AttributeError:
                 data += 'new,'
+
+            # cgMLST
+            try:
+                if type(sample.cgmlst.sequencetype) is list:
+                    if sample.cgmlst.sequencetype:
+                        cgmlst_seq_type = ';'.join(sorted(sample.cgmlst.sequencetype)).rstrip(';') + ','
+                    else:
+                        cgmlst_seq_type = 'ND,'
+                else:
+                    cgmlst_seq_type = GenObject.returnattr(sample.cgmlst, 'sequencetype')
+                    # cgmlst_seq_type = cgmlst_seq_type if cgmlst_seq_type != 'ND,' else 'new,'
+                data += cgmlst_seq_type
+            except AttributeError:
+                data += 'ND,'
             # MLST_Result
             try:
                 if sample.mlst.matches == 7:
@@ -89,15 +102,6 @@ class Reporter(object):
                     data += mlst_seq_type
                 else:
                     data += 'new,'
-                    # # Create a set of all the genes present in the results (gene name split from allele)
-                    # mlst_gene_set = {gene.split('_')[0] for gene in sample.mlst.results}
-                    # # If there are all the genes present, but no perfect match to a reference profile, state that
-                    # # the profile is new
-                    # if len(mlst_gene_set) == 7:
-                    #     data += 'new,'
-                    # # Otherwise indicate that the profile is ND
-                    # else:
-                    #     data += 'ND,'
             except AttributeError:
                 data += 'new,'
             # MLST_gene_X_alleles
@@ -122,8 +126,6 @@ class Reporter(object):
             except AttributeError:
                 # data += '-,-,-,-,-,-,-,'
                 data += 'ND,ND,ND,ND,ND,ND,ND,'
-            # CoreGenesPresent
-            data += GenObject.returnattr(sample.coregenome, 'coreresults')
             # E_coli_Serotype
             try:
                 # If no O-type was found, set the output to be O-untypeable
@@ -143,26 +145,6 @@ class Reporter(object):
                 data += serotype if serotype != 'O-untypeable:H-untypeable,' else 'ND,'
             except AttributeError:
                 data += 'ND,'
-            # try:
-            #     # If no O-type was found, set the output to be O-untypeable
-            #     if ';'.join(sample.serosippr.o_set) == '-':
-            #         otype = 'O-untypeable'
-            #     else:
-            #         otype = '{oset} ({opid})'.format(oset=';'.join(sample.serosippr.o_set),
-            #                                          opid=sample.serosippr.best_o_pid)
-            #     # Same as above for the H-type
-            #     if ';'.join(sample.serosippr.h_set) == '-':
-            #         htype = 'H-untypeable'
-            #
-            #     else:
-            #         htype = '{hset} ({hpid})'.format(hset=';'.join(sample.serosippr.h_set),
-            #                                          hpid=sample.serosippr.best_h_pid)
-            #     serotype = '{otype}:{htype},'.format(otype=otype,
-            #                                          htype=htype)
-            #     # Add the serotype to the data string unless neither O-type not H-type were found; add ND instead
-            #     data += serotype if serotype != 'O-untypeable:H-untypeable,' else 'ND,'
-            # except AttributeError:
-            #     data += 'ND,'
             # SISTR_serovar_antigen
             data += GenObject.returnattr(sample.sistr, 'serovar_antigen').rstrip(';')
             # SISTR_serovar_cgMLST
@@ -222,28 +204,6 @@ class Reporter(object):
             # PredictedGenesUnder500bp
             data += GenObject.returnattr(sample.prodigal, 'predictedgenesunder500bp',
                                          number=True)
-            # NumClustersPF
-            data += GenObject.returnattr(sample.run, 'NumberofClustersPF')
-            # Percent of reads mapping to PhiX control
-            data += GenObject.returnattr(sample.run, 'phix_aligned')
-            # Error rate calculated from PhiX control
-            data += GenObject.returnattr(sample.run, 'error_rate')
-            # LengthForwardRead
-            data += GenObject.returnattr(sample.run, 'forwardlength',
-                                         number=True)
-            # LengthReverseRead
-            data += GenObject.returnattr(sample.run, 'reverselength',
-                                         number=True)
-            # Real time strain
-            data += GenObject.returnattr(sample.run, 'Description')
-            # Flowcell
-            data += GenObject.returnattr(sample.run, 'flowcell')
-            # MachineName
-            data += GenObject.returnattr(sample.run, 'instrument')
-            # PipelineVersion
-            data += self.commit + ','
-            # AssemblyDate
-            data += datetime.now().strftime('%Y-%m-%d')
             # Append a new line to the end of the results for this sample
             data += '\n'
         # Replace any NA values with -
@@ -277,8 +237,8 @@ class Reporter(object):
                 ('MLSTmatches', str(sample.mlst.matchestosequencetype)),
                 ('coreGenome', GenObject.returnattr(sample.coregenome, 'coreresults').rstrip(',')),
                 ('SeroType', '{oset}:{hset}'
-                    .format(oset=';'.join(sample.serosippr.o_set),
-                            hset=';'.join(sample.serosippr.h_set))),
+                 .format(oset=';'.join(sample.serosippr.o_set),
+                         hset=';'.join(sample.serosippr.h_set))),
                 ('geneSeekrProfile', ';'.join(result for result, pid in sorted(sample.genesippr.results.items()))),
                 ('vtyperProfile', ';'.join(sorted(sample.legacy_vtyper.toxinprofile))),
                 ('percentGC', str(sample.quast.GC)),
@@ -317,26 +277,100 @@ class Reporter(object):
             except AttributeError:
                 pass
 
+    def run_quality_reporter(self):
+        run_name = os.path.split(self.path)[-1]
+        data = 'RunName,SequencingDate,AssemblyDate,Analyst,ClusterDensity,PercentOverQ30,NumberofClustersPF,' \
+               'PercentReadsPhiX,ErrorRate, LengthForwardRead,LengthReverseRead,Flowcell,MachineName,PipelineCommit\n'
+        for sample in self.metadata:
+            # RunName
+            data += '{rn},'.format(rn=run_name)
+            # SequencingDate
+            data += GenObject.returnattr(sample.run, 'Date')
+            # AssemblyDate
+            data += datetime.now().strftime('%Y-%m-%d')
+            # Analyst
+            data += GenObject.returnattr(sample.run, 'InvestigatorName')
+            # ClusterDensity
+            data += GenObject.returnattr(sample.run, 'cluster_density')
+            # Percentage of reads with Q-score over 30
+            data += GenObject.returnattr(sample.run, 'over_q30')
+            # NumClustersPF
+            data += GenObject.returnattr(sample.run, 'NumberofClustersPF')
+            # Percentage of reads mapping to PhiX control
+            data += GenObject.returnattr(sample.run, 'phix_aligned')
+            # Error rate calculated from PhiX control
+            data += GenObject.returnattr(sample.run, 'error_rate')
+            # LengthForwardRead
+            data += GenObject.returnattr(sample.run, 'forwardlength',
+                                         number=True)
+            # LengthReverseRead
+            data += GenObject.returnattr(sample.run, 'reverselength',
+                                         number=True)
+            # Flowcell
+            data += GenObject.returnattr(sample.run, 'flowcell')
+            # MachineName
+            data += GenObject.returnattr(sample.run, 'instrument')
+            # PipelineVersion
+            data += self.commit + ','
+            break
+        with open(os.path.join(self.reportpath, 'run_quality_report.csv'), 'w') as run_report:
+            run_report.write(data)
+
     def __init__(self, inputobject, legacy=False):
         self.metadata = inputobject.runmetadata.samples
         self.commit = inputobject.commit
         self.reportpath = inputobject.reportpath
         self.starttime = inputobject.starttime
+        self.path = inputobject.path
         # Define the headers to be used in the metadata report
         # 'AssemblyQuality',
-        self.headers = ['SeqID', 'SampleName', 'Genus', 'SequencingDate', 'Analyst', 'SamplePurity',
-                        'N50', 'NumContigs', 'TotalLength', 'MeanInsertSize', 'InsertSizeSTD',
-                        'AverageCoverageDepth', 'CoverageDepthSTD', 'PercentGC', 'MASH_ReferenceGenome',
-                        'MASH_NumMatchingHashes', '16S_result', 'rMLST_Result', 'MLST_Result', 'MLST_gene_1_allele',
-                        'MLST_gene_2_allele', 'MLST_gene_3_allele', 'MLST_gene_4_allele', 'MLST_gene_5_allele',
-                        'MLST_gene_6_allele', 'MLST_gene_7_allele', 'CoreGenesPresent', 'E_coli_Serotype',
-                        'SISTR_serovar_antigen', 'SISTR_serovar_cgMLST', 'SISTR_serogroup', 'SISTR_h1', 'SISTR_h2',
-                        'SISTR_serovar', 'GeneSeekr_Profile', 'Vtyper_Profile', 'AMR_Profile',
-                        'AMR Resistant/Sensitive', 'PlasmidProfile', 'TotalPredictedGenes', 'PredictedGenesOver3000bp',
-                        'PredictedGenesOver1000bp', 'PredictedGenesOver500bp', "PredictedGenesUnder500bp",
-                        'NumClustersPF', 'PercentReadsPhiX', 'ErrorRate', 'LengthForwardRead', 'LengthReverseRead',
-                        'RealTimeStrain', 'Flowcell', 'MachineName', 'PipelineVersion', 'AssemblyDate']
-        self.reporter()
+        self.headers = [
+            'SeqID',
+            'SampleName',
+            'Genus',
+            'SamplePurity',
+            'N50',
+            'NumContigs',
+            'TotalLength',
+            'MeanInsertSize',
+            'InsertSizeSTD',
+            'AverageCoverageDepth',
+            'CoverageDepthSTD',
+            'PercentGC',
+            'MASH_ReferenceGenome',
+            'MASH_NumMatchingHashes',
+            '16S_result',
+            'CoreGenesPresent',
+            'rMLST_Result',
+            'cgMLST_Result',
+            'MLST_Result',
+            'MLST_gene_1_allele',
+            'MLST_gene_2_allele',
+            'MLST_gene_3_allele',
+            'MLST_gene_4_allele',
+            'MLST_gene_5_allele',
+            'MLST_gene_6_allele',
+            'MLST_gene_7_allele',
+            'E_coli_Serotype',
+            'SISTR_serovar_antigen',
+            'SISTR_serovar_cgMLST',
+            'SISTR_serogroup',
+            'SISTR_h1',
+            'SISTR_h2',
+            'SISTR_serovar',
+            'GeneSeekr_Profile',
+            'Vtyper_Profile',
+            'AMR_Profile',
+            'AMR Resistant/Sensitive',
+            'PlasmidProfile',
+            'TotalPredictedGenes',
+            'PredictedGenesOver3000bp',
+            'PredictedGenesOver1000bp',
+            'PredictedGenesOver500bp',
+            'PredictedGenesUnder500bp',
+        ]
+        self.metadata_reporter()
+        self.run_quality_reporter()
         if legacy:
             self.legacy_reporter()
         # Create a database to store all the metadata

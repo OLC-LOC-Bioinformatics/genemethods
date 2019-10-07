@@ -18,6 +18,8 @@ class BLAST(object):
         """
         Run the methods in the proper order
         """
+        if 'mlst' in self.analysistype.lower():
+            self.filter_allele_db()
         self.blast_db()
         self.run_blast()
         self.parseable_blast_outputs()
@@ -27,6 +29,12 @@ class BLAST(object):
             self.export_fasta()
         self.clean_object()
         logging.info('{at} analyses complete'.format(at=self.analysistype))
+
+    def filter_allele_db(self):
+        logging.info('Filtering large {at} allele database'.format(at=self.analysistype))
+        self.geneseekr.filter_db(metadata=self.metadata,
+                                 analysistype=self.analysistype,
+                                 cpus=self.cpus)
 
     def blast_db(self):
         """
@@ -44,13 +52,22 @@ class BLAST(object):
         logging.info('Performing {program} analyses on {at} targets'.format(program=self.program,
                                                                             at=self.analysistype))
         if 'mlst' in self.analysistype.lower():
+            if self.analysistype == 'cgmlst':
+                num_alignments = 500000
+                cutoff = 99
+                evalue = '1E-20'
+            else:
+                num_alignments = 200000
+                cutoff = 99
+                evalue = '1E-10'
             self.metadata = self.geneseekr.run_blast(metadata=self.metadata,
                                                      analysistype=self.analysistype,
                                                      program=self.program,
                                                      outfmt=self.outfmt,
-                                                     evalue='1E-10',
+                                                     evalue=evalue,
                                                      num_threads=self.cpus,
-                                                     perc_identity=99)
+                                                     num_alignments=num_alignments,
+                                                     perc_identity=cutoff)
         elif 'sixteens' in self.analysistype:
             self.metadata = self.geneseekr.run_blast(metadata=self.metadata,
                                                      analysistype=self.analysistype,
@@ -159,14 +176,11 @@ class BLAST(object):
                 if len(sample[self.analysistype].alleles) > 53:
                     allele_set = set()
                     for allele in sample[self.analysistype].targetnames:
-                        if len(allele.split('_')) == 3:
-                            allele = '_'.join([allele.split('_')[0], allele.split('_')[1]])
-                        else:
-                            allele = allele.split('_')[0]
                         allele_set.add(allele)
                     sample[self.analysistype].alleles = sorted(list(allele_set))
                 # Allele names attribute is apparently the same as the alleles attribute
                 sample[self.analysistype].allelenames = sample[self.analysistype].alleles
+
                 try:
                     sample[self.analysistype].profile = glob(os.path.join(sample[self.analysistype].targetpath,
                                                                           '*.txt'))[0]
@@ -351,7 +365,12 @@ class BLAST(object):
 
 class MLST(MLSTSippr):
     def reporter(self):
-        analysistype = 'rmlst' if 'rmlst' in self.analysistype.lower() else 'mlst'
+        if 'rmlst' in self.analysistype.lower():
+            analysistype = 'rmlst'
+        elif 'cgmlst' in self.analysistype.lower():
+            analysistype = 'cgmlst'
+        else:
+            analysistype = 'mlst'
         # Populate self.plusdict in order to reuse parsing code from an assembly-based method
         for sample in self.runmetadata.samples:
             self.plusdict[sample.name] = dict()

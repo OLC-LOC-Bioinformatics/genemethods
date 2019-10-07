@@ -26,7 +26,7 @@ import re
 __author__ = 'adamkoziol'
 
 
-class GDCS(Sippr):
+class GDCS(object):
 
     def main(self):
         """
@@ -34,17 +34,86 @@ class GDCS(Sippr):
         """
         if not os.path.isfile(self.gdcs_report):
             logging.info('Starting {at} analysis pipeline'.format(at=self.analysistype))
-            # Run the analyses
-            ShortKSippingMethods(self, self.cutoff)
+            # Extract the number of core genes found out of the total number of core genes for that genus.
+            self.gene_tally()
             # Create the reports
             self.reporter()
         else:
             self.report_parse()
 
+    def gene_tally(self):
+        """
+        Tally the number of core genes present out of the total number of expected core genes for MLST, rMLST, and
+        cgMLST analyses
+        """
+        for sample in self.runmetadata.samples:
+            genes_present = 0
+            genes_total = 0
+            # Create the GenObject with the necessary attributes
+            setattr(sample, self.analysistype, GenObject())
+            for analysistype in self.analyses:
+                sample[self.analysistype]['{at}_genes_present'.format(at=analysistype)] = 0
+                sample[self.analysistype]['{at}_genes_total'.format(at=analysistype)] = 0
+                try:
+                    # Add the total number of genes in the database of the current analysis type
+                    sample[self.analysistype]['{at}_genes_present'.format(at=analysistype)] \
+                        += len(sample[analysistype].combined_metadata_results)
+                    sample[self.analysistype]['{at}_genes_total'.format(at=analysistype)] \
+                        += len(sample[analysistype].combined_metadata_results)
+                    # A gene can be present multiple times in the list of the mismatches to sequence type attribute.
+                    # Only consider each gene once
+                    counted_genes = list()
+                    # Subtract genes that are not present in the strain
+                    for mismatch in sample[analysistype].mismatchestosequencetype:
+                        for gene, allele in mismatch.items():
+                            if gene not in counted_genes:
+                                counted_genes.append(gene)
+                                # If the gene is not present in the strain, and the profile, subtract the gene from
+                                # both the genes present and genes total
+                                if allele == 'NA (N)':
+                                    sample[self.analysistype]['{at}_genes_present'.format(at=analysistype)] -= 1
+                                    sample[self.analysistype]['{at}_genes_total'.format(at=analysistype)] -= 1
+                                # If the gene is missing in the strain, but present in the profile, only subtract
+                                # the gene from the genes present
+                                elif 'NA (' in allele:
+                                    sample[self.analysistype]['{at}_genes_present'.format(at=analysistype)] -= 1
+
+                except AttributeError:
+                    pass
+                # Add the MLST and rMLST genes to the running totals
+                if analysistype != 'cgmlst':
+                    # Increment the genes present and total variables with the results from the current analysis
+                    genes_present += sample[self.analysistype]['{at}_genes_present'.format(at=analysistype)]
+                    genes_total += sample[self.analysistype]['{at}_genes_total'.format(at=analysistype)]
+            # Calculate the total core results
+            sample[self.analysistype].coreresults = '{pres}/{total}'.format(pres=genes_present,
+                                                                            total=genes_total)
+
     def reporter(self):
-        # Create the report object
-        report = Reports(self)
-        report.gdcsreporter()
+        """
+        Create a report of the core genes present / total genes for each strain
+        """
+        data = 'Strain,Genus,TotalCore,MLST_genes,rMLST_genes,cgMLST_genes,\n'
+        for sample in self.runmetadata.samples:
+            # Extract the closest reference genus
+            try:
+                genus = sample.general.closestrefseqgenus
+            except AttributeError:
+                try:
+                    genus = sample.general.referencegenus
+                except AttributeError:
+                    genus = 'ND'
+            data += '{sn},{genus},{total},'.format(sn=sample.name,
+                                                   genus=genus,
+                                                   total=sample[self.analysistype].coreresults)
+            for analysis in self.analyses:
+                data += '{present}/{total},'.format(present=sample[self.analysistype]['{at}_genes_present'
+                                                    .format(at=analysis)],
+                                                    total=sample[self.analysistype]['{at}_genes_total'
+                                                    .format(at=analysis)])
+            data += '\n'
+        with open(self.gdcs_report, 'w') as report:
+            report.write(data)
 
     def report_parse(self):
         """
@@ -58,78 +127,40 @@ class GDCS(Sippr):
             # Sample is the primary key, and value is the value of the cell for that primary key + header combination
             for sample, value in dictionary[header].items():
                 # Update the dictionary with the new data
-                try:
-                    nesteddictionary[sample].update({header: value})
-                # Create the nested dictionary if it hasn't been created yet
-                except KeyError:
+                if sample not in nesteddictionary:
                     nesteddictionary[sample] = dict()
-                    nesteddictionary[sample].update({header: value})
+                nesteddictionary[sample].update({header: value})
+        for sample in self.runmetadata.samples:
+            # Create the GenObject with the necessary attributes
+            setattr(sample, self.analysistype, GenObject())
         report_strains = list()
         for key in nesteddictionary:
             strain = nesteddictionary[key]['Strain']
             report_strains.append(strain)
-            for sample in self.runmetadata:
+            for sample in self.runmetadata.samples:
                 if strain == sample.name:
                     self.genobject_populate(key=key,
                                             sample=sample,
                                             nesteddictionary=nesteddictionary)
-        for sample in self.runmetadata:
+        for sample in self.runmetadata.samples:
             if sample.name not in report_strains:
                 self.genobject_populate(key=None,
                                         sample=sample,
                                         nesteddictionary=dict())
 
     def genobject_populate(self, key, sample, nesteddictionary):
-        # Create the GenObject with the necessary attributes
-        setattr(sample, self.analysistype, GenObject())
-        sample[self.analysistype].results = dict()
-        sample[self.analysistype].avgdepth = dict()
-        sample[self.analysistype].standarddev = dict()
-        sample[self.analysistype].targetpath = \
-            os.path.join(self.targetpath, self.analysistype, sample.general.closestrefseqgenus)
-        # Set the necessary attributes
-        try:
-            sample[self.analysistype].outputdir = os.path.join(sample.run.outputdirectory,
-                                                               self.analysistype)
-        except AttributeError:
-            sample.run.outputdirectory = os.path.join(self.path, sample.name)
-            sample[self.analysistype].outputdir = os.path.join(sample.run.outputdirectory, self.analysistype)
-        sample[self.analysistype].logout = os.path.join(sample[self.analysistype].outputdir,
-                                                        'logout.txt')
-        sample[self.analysistype].logerr = os.path.join(sample[self.analysistype].outputdir,
-                                                        'logerr.txt')
-        sample[self.analysistype].baitedfastq = \
-            os.path.join(sample[self.analysistype].outputdir,
-                         '{at}_targetMatches.fastq.gz'.format(at=self.analysistype))
-        sample[self.analysistype].baitfile = os.path.join(sample[self.analysistype].outputdir,
-                                                          'baitedtargets.fa')
-        sample[self.analysistype].faifile = sample[self.analysistype].baitfile + '.fai'
-        # Get the fai file into a dictionary to be used in parsing results
-        try:
-            with open(sample[self.analysistype].faifile, 'r') as faifile:
-                for line in faifile:
-                    data = line.split('\t')
-                    try:
-                        sample[self.analysistype].faidict[data[0]] = int(data[1])
-                    except (AttributeError, KeyError):
-                        sample[self.analysistype].faidict = dict()
-                        sample[self.analysistype].faidict[data[0]] = int(data[1])
-        except FileNotFoundError:
-            sample[self.analysistype].faidict = dict()
         try:
             # Pull the necessary values from the report
             for header, value in nesteddictionary[key].items():
-                if header.startswith('BACT'):
-                    try:
-                        pid, avg_depth, plus_minus, stddev_depth = value.split()
-                        pid = float(pid.rstrip('%'))
-                        avg_depth = float(avg_depth.lstrip('('))
-                        stddev_depth = float(stddev_depth.rstrip(')'))
-                        sample[self.analysistype].results[header] = pid
-                        sample[self.analysistype].avgdepth[header] = avg_depth
-                        sample[self.analysistype].standarddev[header] = stddev_depth
-                    except (AttributeError, ValueError):
-                        pass
+                if header == 'TotalCore':
+                    sample[self.analysistype].coreresults = value
+                elif header == 'MLST_genes':
+                    sample[self.analysistype].mlst_genes_present, sample[self.analysistype].mlst_genes_total \
+                        = value.split('/')
+                elif header == 'rMLST_genes':
+                    sample[self.analysistype].rmlst_genes_present, \
+                        sample[self.analysistype].rmlst_genes_total \
+                        = value.split('/')
         except KeyError:
             pass
 
@@ -143,7 +174,7 @@ class GDCS(Sippr):
         self.reportpath = inputobject.reportpath
         self.runmetadata = inputobject.runmetadata
         self.homepath = inputobject.homepath
-        self.analysistype = 'GDCS'
+        self.analysistype = 'gdcs'
         self.cutoff = 0.9
         self.pipeline = True
         self.revbait = False
@@ -152,10 +183,9 @@ class GDCS(Sippr):
         self.cpus = inputobject.cpus
         self.threads = int(self.cpus / len(self.runmetadata.samples)) \
             if self.cpus / len(self.runmetadata.samples) > 1 else 1
-        self.taxonomy = {'Escherichia': 'coli', 'Listeria': 'monocytogenes', 'Salmonella': 'enterica'}
         self.logfile = inputobject.logfile
+        self.analyses = ['mlst', 'rmlst', 'cgmlst']
         self.gdcs_report = os.path.join(self.reportpath, '{at}.csv'.format(at=self.analysistype))
-        super().__init__(self)
 
 
 class Plasmids(GeneSippr):

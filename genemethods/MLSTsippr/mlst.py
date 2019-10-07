@@ -25,7 +25,9 @@ class GeneSippr(object):
         Run the necessary methods in the correct order
         """
         if os.path.isfile(self.report):
-            self.report_parse()
+            parse = ReportParse(args=self,
+                                analysistype=self.analysistype)
+            parse.report_parse()
         else:
             logging.info('Starting {at} analysis pipeline'.format(at=self.analysistype))
             # Create the objects to be used in the analyses (if required)
@@ -113,34 +115,44 @@ class GeneSippr(object):
                     if sequenceprofile == sample[self.analysistype].profile:
                         geneset = {allele for allele in sample[self.analysistype].alleles}
             try:
-                # Open the sequence profile file as a dictionary
+                # Open an Excel-formatted sequence profile file as a dictionary
                 profile = DictReader(open(sequenceprofile), dialect='excel-tab')
             # Revert to standard comma separated values
             except KeyError:
                 # Open the sequence profile file as a dictionary
                 profile = DictReader(open(sequenceprofile))
-            # Iterate through the rows
-            for row in profile:
-                # Populate the profile dictionary with profile number: {gene: allele}. Use the first field name,
-                # which will be either ST, or rST as the key to determine the profile number value
-                allele_comprehension = {gene: allele for gene, allele in row.items() if gene in geneset}
-                st = row[profile.fieldnames[0]]
-                for header, value in row.items():
-                    value = value if value else 'ND'
-                    if header not in geneset and header not in ['ST', 'rST']:
-                        if st not in self.meta_dict[sequenceprofile]:
-                            self.meta_dict[sequenceprofile][st] = dict()
-                        if header == 'CC' or header == 'clonal_complex':
-                            header = 'CC'
-                        self.meta_dict[sequenceprofile][st][header] = value
-                        self.meta_dict[sequenceprofile]['ND'][header] = 'ND'
-                        self.meta_dict[sequenceprofile][st]['PredictedSerogroup'] = 'ND'
-                        if header not in self.meta_headers:
-                            self.meta_headers.append(header)
-                profiledata[sequenceprofile][st] = allele_comprehension
-                # Create a 'reverse' dictionary using the the allele comprehension as the key, and
-                # the sequence type as the value - can be used if exact matches are ever desired
-                reverse_profiledata[sequenceprofile].update({frozenset(allele_comprehension.items()): st})
+            if self.analysistype != 'cgmlst':
+                # Iterate through the rows
+                for row in profile:
+                    # Populate the profile dictionary with profile number: {gene: allele}. Use the first field name,
+                    # which will be either ST, or rST as the key to determine the profile number value
+                    allele_comprehension = {gene: allele for gene, allele in row.items() if gene in geneset}
+                    st = row[profile.fieldnames[0]]
+                    for gene, allele in row.items():
+                        allele = allele if allele else 'ND'
+                        if gene not in geneset and gene not in ['ST', 'rST']:
+                            if st not in self.meta_dict[sequenceprofile]:
+                                self.meta_dict[sequenceprofile][st] = dict()
+                            if gene == 'CC' or gene == 'clonal_complex':
+                                gene = 'CC'
+                            self.meta_dict[sequenceprofile][st][gene] = allele
+                            self.meta_dict[sequenceprofile]['ND'][gene] = 'ND'
+                            self.meta_dict[sequenceprofile][st]['PredictedSerogroup'] = 'ND'
+                            if gene not in self.meta_headers:
+                                self.meta_headers.append(gene)
+                    profiledata[sequenceprofile][st] = allele_comprehension
+                    # Create a 'reverse' dictionary using the the allele comprehension as the key, and
+                    # the sequence type as the value - can be used if exact matches are ever desired
+                    reverse_profiledata[sequenceprofile].update({frozenset(allele_comprehension.items()): st})
+            else:
+                for row in profile:
+                    st = row[profile.fieldnames[0]]
+                    # if st not in profiledata[sequenceprofile]:
+                    #     profiledata[sequenceprofile][st] = dict()
+                    allele_comprehension = {gene: allele for gene, allele in row.items() if gene in geneset}
+                    # Populate the profile dictionary with profile number: {gene: allele}. Use the first field name,
+                    profiledata[sequenceprofile][st] = allele_comprehension
+                    reverse_profiledata[sequenceprofile].update({frozenset(allele_comprehension.items()): st})
             # Add the profile data, and gene list to each sample
             for sample in self.runmetadata.samples:
                 if sample.general.bestassemblyfile != 'NA' and sample[self.analysistype].profile not in ['NA', 'ND']:
@@ -409,7 +421,7 @@ class GeneSippr(object):
                             except AttributeError:
                                 pass
                             header_fields = additional_fields
-                        else:
+                        elif self.analysistype == 'rmlst':
                             additional_fields = [
                                 'genus', 'species', 'subspecies', 'lineage', 'sublineage', 'other_designation', 'notes'
                             ]
@@ -417,6 +429,8 @@ class GeneSippr(object):
                                 'rMLST_genus', 'species', 'subspecies', 'lineage', 'sublineage', 'other_designation',
                                 'notes'
                             ]
+                        else:
+                            header_fields = dict()
                         # Populate the header with the appropriate data, including all the genes in the list of targets
                         if not header_row:
                             if additional_fields:
@@ -542,6 +556,142 @@ class GeneSippr(object):
                 # Write the results to this report
                 combinedreport.write(combinedrow)
 
+    def __init__(self, args, pipelinecommit, startingtime, scriptpath, analysistype, cutoff, pipeline,
+                 allow_soft_clips=False):
+        """
+        :param args: command line arguments
+        :param pipelinecommit: pipeline commit or version
+        :param startingtime: time the script was started
+        :param scriptpath: home path of the script
+        :param analysistype: name of the analysis being performed - allows the program to find databases
+        :param cutoff: percent identity cutoff for matches
+        :param pipeline: boolean of whether this script needs to run as part of a particular assembly pipeline
+        :param allow_soft_clips: Boolean whether the BAM parsing should exclude sequences with internal soft clips
+        """
+        # Initialise variables
+        self.commit = str(pipelinecommit)
+        self.starttime = startingtime
+        self.homepath = scriptpath
+        # Define variables based on supplied arguments
+        self.path = os.path.join(args.path)
+        assert os.path.isdir(self.path), 'Supplied path is not a valid directory {path}'.format(path=self.path)
+        try:
+            self.sequencepath = os.path.join(args.sequencepath)
+        except AttributeError:
+            self.sequencepath = self.path
+        assert os.path.isdir(self.sequencepath), 'Sequence path  is not a valid directory {seq_path}' \
+            .format(seq_path=self.sequencepath)
+        try:
+            if pipeline:
+                self.targetpath = os.path.join(args.reffilepath, analysistype)
+            else:
+                self.targetpath = os.path.join(args.reffilepath)
+        except AttributeError:
+            self.targetpath = os.path.join(args.targetpath)
+        if pipeline:
+            if 'mlst' in self.targetpath.lower():
+                if 'rmlst' in self.targetpath.lower():
+                    self.targetpath = os.path.join(os.path.dirname(self.targetpath), 'rMLST')
+                if 'cgmlst' in self.targetpath.lower():
+                    self.targetpath = os.path.join(os.path.dirname(self.targetpath), 'cgMLST')
+                elif 'mlst' in self.targetpath.lower():
+                    self.targetpath = os.path.join(os.path.dirname(self.targetpath), 'MLST')
+        assert os.path.isdir(self.targetpath), 'Target path is not a valid directory {target_path}' \
+            .format(target_path=self.targetpath)
+        self.reportpath = os.path.join(self.path, 'reports')
+        try:
+            self.bcltofastq = args.bcltofastq
+        except AttributeError:
+            self.bcltofastq = False
+        try:
+            self.miseqpath = args.miseqpath
+        except AttributeError:
+            self.miseqpath = str()
+        try:
+            self.miseqfolder = args.miseqfolder
+        except AttributeError:
+            self.miseqfolder = str()
+        try:
+            self.fastqdestination = args.fastqdestination
+        except AttributeError:
+            self.fastqdestination = str()
+        try:
+            self.forwardlength = args.forwardlength
+        except AttributeError:
+            self.forwardlength = 'full'
+        try:
+            self.reverselength = args.reverselength
+        except AttributeError:
+            self.reverselength = 'full'
+        self.numreads = 2 if self.reverselength != 0 else 1
+        try:
+            self.customsamplesheet = args.customsamplesheet
+        except AttributeError:
+            self.customsamplesheet = str()
+        # Set the custom cutoff value
+        self.cutoff = float(cutoff)
+        self.logfile = args.logfile
+        try:
+            self.averagedepth = int(args.averagedepth)
+        except AttributeError:
+            self.averagedepth = 10
+        try:
+            self.copy = args.copy
+        except AttributeError:
+            self.copy = False
+        try:
+            self.runmetadata = args.runmetadata
+        except AttributeError:
+            # Create the objects to be used in the analyses
+            objects = Objectprep(self)
+            objects.objectprep()
+            self.runmetadata = objects.samples
+        # Use the argument for the number of threads to use, or default to the number of cpus in the system
+        try:
+            self.cpus = int(args.cpus)
+        except AttributeError:
+            self.cpus = multiprocessing.cpu_count()
+        try:
+            self.threads = int(self.cpus / len(self.runmetadata.samples)) if self.cpus / len(self.runmetadata.samples) \
+                                                                             > 1 else 1
+        except TypeError:
+            self.threads = self.cpus
+        self.taxonomy = {'Escherichia': 'coli', 'Listeria': 'monocytogenes', 'Salmonella': 'enterica'}
+        #
+        self.pipeline = pipeline
+        self.allow_soft_clips = allow_soft_clips
+        if analysistype.lower() == 'mlst':
+            self.analysistype = 'mlst'
+        elif analysistype.lower() == 'rmlst':
+            self.analysistype = 'rmlst'
+        elif analysistype.lower() == 'cgmlst':
+            self.analysistype = 'cgmlst'
+        else:
+            sys.stderr.write('Please ensure that you specified a valid option for the analysis type. You entered {}. '
+                             'The only acceptable options currently are cgmlst, mlst and rmlst.'
+                             .format(args.analysistype))
+            quit()
+        self.plusdict = dict()
+        self.matchdict = dict()
+        self.bestdict = defaultdict(make_dict)
+        self.bestmatch = defaultdict(int)
+        self.mlstseqtype = defaultdict(make_dict)
+        self.resultprofile = defaultdict(make_dict)
+        self.referenceprofile = defaultdict(make_dict)
+        self.report = os.path.join(self.reportpath, self.analysistype + '.csv')
+        self.meta_dict = dict()
+        self.meta_headers = list()
+        self.listeria_serogroup_dict = {
+            'IIb': [3, 5, 39, 59, 66, 87, 117, 287, 489, 517, 576, 617],
+            'IVb': [1, 2, 4, 6, 55, 63, 64, 67, 73, 145, 257, 290, 291, 347, 397, 454, 458, 495],
+            'IIa': [7, 8, 12, 21, 26, 31, 98, 101, 103, 109, 121, 155, 177, 398, 403, 451, 466, 519, 521],
+            'IIc': [9, 122, 356],
+            'spp.': [71, 202, 467, 488]
+        }
+
+
+class ReportParse(object):
+
     def report_parse(self):
         """
         If the pipeline has previously been run on these data, instead of reading through the results, parse the
@@ -633,6 +783,7 @@ class GeneSippr(object):
                         # Iterate through the gene:allele combination present in header[index]: results[index]
                         # The header has genes starting in the 5th column, so start the list splice there
                         iterator = header_dict['Matches'] + 1
+                        mismatches = list()
                         for allele in results[iterator:]:
                             # Initialise the gene variable
                             gene = header_list[iterator]
@@ -647,135 +798,18 @@ class GeneSippr(object):
                                 sample[self.analysistype].results[gene_allele] = 100
                                 sample[self.analysistype].combined_metadata_results[gene_allele] = 100
                                 iterator += 1
+                                # Add any mismatches to the list of mismatches
+                                if '(' in allele:
+                                    mismatches.append({gene: allele})
+                        # Add the mismatches to the genobject
+                        sample[self.analysistype].mismatchestosequencetype = mismatches
         return report_strains
 
-    def __init__(self, args, pipelinecommit, startingtime, scriptpath, analysistype, cutoff, pipeline,
-                 allow_soft_clips=False):
-        """
-        :param args: command line arguments
-        :param pipelinecommit: pipeline commit or version
-        :param startingtime: time the script was started
-        :param scriptpath: home path of the script
-        :param analysistype: name of the analysis being performed - allows the program to find databases
-        :param cutoff: percent identity cutoff for matches
-        :param pipeline: boolean of whether this script needs to run as part of a particular assembly pipeline
-        :param allow_soft_clips: Boolean whether the BAM parsing should exclude sequences with internal soft clips
-        """
-        # Initialise variables
-        self.commit = str(pipelinecommit)
-        self.starttime = startingtime
-        self.homepath = scriptpath
-        # Define variables based on supplied arguments
-        self.path = os.path.join(args.path)
-        assert os.path.isdir(self.path), 'Supplied path is not a valid directory {path}'.format(path=self.path)
-        try:
-            self.sequencepath = os.path.join(args.sequencepath)
-        except AttributeError:
-            self.sequencepath = self.path
-        assert os.path.isdir(self.sequencepath), 'Sequence path  is not a valid directory {seq_path}' \
-            .format(seq_path=self.sequencepath)
-        try:
-            if pipeline:
-                self.targetpath = os.path.join(args.reffilepath, analysistype)
-            else:
-                self.targetpath = os.path.join(args.reffilepath)
-        except AttributeError:
-            self.targetpath = os.path.join(args.targetpath)
-        if pipeline:
-            if 'mlst' in self.targetpath.lower():
-                if 'rmlst' in self.targetpath.lower():
-                    self.targetpath = os.path.join(os.path.dirname(self.targetpath), 'rMLST')
-                elif 'mlst' in self.targetpath.lower():
-                    self.targetpath = os.path.join(os.path.dirname(self.targetpath), 'MLST')
-        assert os.path.isdir(self.targetpath), 'Target path is not a valid directory {target_path}' \
-            .format(target_path=self.targetpath)
-        self.reportpath = os.path.join(self.path, 'reports')
-        try:
-            self.bcltofastq = args.bcltofastq
-        except AttributeError:
-            self.bcltofastq = False
-        try:
-            self.miseqpath = args.miseqpath
-        except AttributeError:
-            self.miseqpath = str()
-        try:
-            self.miseqfolder = args.miseqfolder
-        except AttributeError:
-            self.miseqfolder = str()
-        try:
-            self.fastqdestination = args.fastqdestination
-        except AttributeError:
-            self.fastqdestination = str()
-        try:
-            self.forwardlength = args.forwardlength
-        except AttributeError:
-            self.forwardlength = 'full'
-        try:
-            self.reverselength = args.reverselength
-        except AttributeError:
-            self.reverselength = 'full'
-        self.numreads = 2 if self.reverselength != 0 else 1
-        try:
-            self.customsamplesheet = args.customsamplesheet
-        except AttributeError:
-            self.customsamplesheet = str()
-        # Set the custom cutoff value
-        self.cutoff = float(cutoff)
-        self.logfile = args.logfile
-        try:
-            self.averagedepth = int(args.averagedepth)
-        except AttributeError:
-            self.averagedepth = 10
-        try:
-            self.copy = args.copy
-        except AttributeError:
-            self.copy = False
-        try:
-            self.runmetadata = args.runmetadata
-        except AttributeError:
-            # Create the objects to be used in the analyses
-            objects = Objectprep(self)
-            objects.objectprep()
-            self.runmetadata = objects.samples
-        # Use the argument for the number of threads to use, or default to the number of cpus in the system
-        try:
-            self.cpus = int(args.cpus)
-        except AttributeError:
-            self.cpus = multiprocessing.cpu_count()
-        try:
-            self.threads = int(self.cpus / len(self.runmetadata.samples)) if self.cpus / len(self.runmetadata.samples) \
-                                                                             > 1 else 1
-        except TypeError:
-            self.threads = self.cpus
-        self.taxonomy = {'Escherichia': 'coli', 'Listeria': 'monocytogenes', 'Salmonella': 'enterica'}
-        #
-        self.pipeline = pipeline
-        self.allow_soft_clips = allow_soft_clips
-        if analysistype.lower() == 'mlst':
-            self.analysistype = 'mlst'
-        elif analysistype.lower() == 'rmlst':
-            self.analysistype = 'rmlst'
-        else:
-            sys.stderr.write('Please ensure that you specified a valid option for the analysis type. You entered {}. '
-                             'The only acceptable options currently are mlst and rmlst.'.format(args.analysistype))
-            quit()
-        self.plusdict = dict()
-        self.matchdict = dict()
-        self.bestdict = defaultdict(make_dict)
-        self.bestmatch = defaultdict(int)
-        self.mlstseqtype = defaultdict(make_dict)
-        self.resultprofile = defaultdict(make_dict)
-        self.referenceprofile = defaultdict(make_dict)
+    def __init__(self, args, analysistype):
+        self.runmetadata = args.runmetadata
+        self.analysistype = analysistype
+        self.reportpath = os.path.join(args.path, 'reports')
         self.report = os.path.join(self.reportpath, self.analysistype + '.csv')
-        self.meta_dict = dict()
-        self.meta_headers = list()
-        self.listeria_serogroup_dict = {
-            'IIb': [3, 5, 39, 59, 66, 87, 117, 287, 489, 517, 576, 617],
-            'IVb': [1, 2, 4, 6, 55, 63, 64, 67, 73, 145, 257, 290, 291, 347, 397, 454, 458, 495],
-            'IIa': [7, 8, 12, 21, 26, 31, 98, 101, 103, 109, 121, 155, 177, 398, 403, 451, 466, 519, 521],
-            'IIc': [9, 122, 356],
-            'spp.': [71, 202, 467, 488]
-        }
 
 
 if __name__ == '__main__':

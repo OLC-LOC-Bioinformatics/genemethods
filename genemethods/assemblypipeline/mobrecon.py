@@ -236,27 +236,37 @@ class MobRecon(object):
                         pass
                 for primarykey, results in sample[self.analysistype].report_dict.items():
                     try:
-                        contig = results['contig_id'].split('|')[1]
+                        # MOB suite 2.0.0 has different output?
+                        try:
+                            contig = results['contig_id'].split('|')[1]
+                        except IndexError:
+                            contig = results['contig_id']
                         # Unicycler gives contigs names such as: 3_length=187116_depth=1.60x_circular=true - test
                         # to see if the contig name looks unicycler-like, and set the name appropriately (in this
                         # case, it would be 3)
-                        if contig.split('_')[1].startswith('length'):
-                            contig = contig.split('_')[0]
+                        try:
+                            if contig.split('_')[1].startswith('length'):
+                                contig = contig.split('_')[0]
+                        except IndexError:
+                            pass
                         for gene, result_dict in sample.geneseekr_results.sampledata.items():
                             if contig == result_dict['query_id']:
                                 percent_identity = result_dict['PercentIdentity']
                                 # Set up the output string if the percent identity of the match is greater than the
                                 # cutoff
-                                if float(result_dict['PercentIdentity']) >= self.cutoff:
-                                    # As there was at least a single gene passing the threshold, set the boolean to True
-                                    result_bool = True
-                                    data += '{sn},'.format(sn=sample.name)
-                                    data += '{gene},{pi},{contig},{cid},{inc}\n'\
-                                        .format(gene=gene,
-                                                pi=percent_identity,
-                                                contig=contig,
-                                                cid=results['cluster_id'],
-                                                inc=';'.join(sorted(inc_dict[str(results['cluster_id'])])))
+                                try:
+                                    if float(result_dict['PercentIdentity']) >= self.cutoff:
+                                        # As there was at least a single gene passing the threshold, set the boolean to True
+                                        result_bool = True
+                                        data += '{sn},'.format(sn=sample.name)
+                                        data += '{gene},{pi},{contig},{cid},{inc}\n'\
+                                            .format(gene=gene,
+                                                    pi=percent_identity,
+                                                    contig=contig,
+                                                    cid=results['cluster_id'],
+                                                    inc=';'.join(sorted(inc_dict[str(results['cluster_id'])])))
+                                except ValueError:
+                                    data += '{sn}\n'.format(sn=sample.name)
                     except KeyError:
                         pass
                 # If there were no results associated with the strain, make the row the strain name only
@@ -361,7 +371,7 @@ if __name__ == '__main__':
                     for i, header in enumerate(headers):
                         # Add the raw BLAST outputs (e.g. sample_id, positives, alignment_length, etc.) to the
                         # dictionary (gene name: header: result)
-                        sample.geneseekr_results.sampledata[result[1]].update({headers[i]: result[i]})
+                        sample.geneseekr_results.sampledata[result[1].lstrip('gb|').rstrip('|')].update({headers[i]: result[i]})
         return metadata
 
 

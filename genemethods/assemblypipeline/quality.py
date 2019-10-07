@@ -362,15 +362,20 @@ class Quality(object):
                 pass
             make_path(reportpath)
             # Run confindr
-            systemcall = 'confindr.py -i {input_dir} -o {output_dir} -d {database_dir} --rmlst -bf 0.05'\
+            systemcall = 'confindr.py -i {input_dir} -o {output_dir} -d {database_dir} --rmlst -bf 0.05 ' \
+                         '--cross_details -k'\
                 .format(input_dir=input_dir,
                         output_dir=os.path.join(input_dir, 'confindr'),
-                        database_dir=os.path.join(self.reffilepath, 'ConFindr', 'databases'))
+                        database_dir=os.path.join(self.reffilepath, 'ConFindr'))
             # Run the call
             out, err = run_subprocess(systemcall)
             write_to_logfile(systemcall, systemcall, self.logfile, None, None, None, None)
             write_to_logfile(out, err, self.logfile, None, None, None, None)
             logging.info('Contamination detection complete!')
+        try:
+            pass
+        except Exception as e:
+            pass
         # Load the confindr report into a dictionary using pandas
         # https://stackoverflow.com/questions/33620982/reading-csv-file-as-dictionary-using-pandas
         confindr_results = pandas.read_csv(confindr_report, index_col=0).T.to_dict()
@@ -399,9 +404,9 @@ class Quality(object):
                             str(confindr_results[line]['PercentContamStandardDeviation']) != 'nan' else 0
                     except KeyError:
                         sample.confindr.percent_contam_std = 'ND'
-                    if sample.confindr.contam_status is True:
+                    if sample.confindr.contam_status == 'True':
                         sample.confindr.contam_status = 'Contaminated'
-                    elif sample.confindr.contam_status is False:
+                    elif sample.confindr.contam_status == 'False':
                         sample.confindr.contam_status = 'Clean'
 
         # Re-write the output to be consistent with the rest of the pipeline

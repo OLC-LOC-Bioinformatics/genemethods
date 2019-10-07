@@ -69,7 +69,10 @@ class Parser(object):
         Find all target files (files with .tfa extensions), and create a combined targets file if it already doesn't
         exist
         """
-        if self.analysistype != 'GDCS':
+        if 'mlst' in self.analysistype and not self.genus_specific:
+            metadata[self.analysistype].targetpath = self.targetpath
+
+        elif self.analysistype != 'GDCS':
             metadata[self.analysistype].targetpath = os.path.join(self.targetpath, metadata.general.referencegenus)
         else:
             metadata[self.analysistype].targetpath = os.path.join(self.targetpath,
@@ -98,11 +101,25 @@ class Parser(object):
         """
         logging.info('Extracting sequence names from combined target file')
         # Extract all the sequence names from the combined targets file
-        if not self.genus_specific:
+        if not self.genus_specific and 'mlst' not in self.analysistype.lower():
             sequence_names = sequencenames(self.combinedtargets)
+            self.metadata = self.populate(metadataobject=self.metadata,
+                                          sequence_names=sequence_names)
+        elif 'mlst' in self.analysistype.lower():
+            sequence_names = list()
+            self.metadata = self.populate(metadataobject=self.metadata,
+                                          sequence_names=sequence_names)
+            for sample in self.metadata:
+                self.genus_targets(metadata=sample)
+
         else:
             sequence_names = list()
-        for metadata in self.metadata:
+            self.metadata = self.populate(metadataobject=self.metadata,
+                                          sequence_names=sequence_names)
+
+    def populate(self, metadataobject, sequence_names):
+        updated_metadata = list()
+        for metadata in metadataobject:
             # Create and populate the :analysistype attribute
             setattr(metadata, self.analysistype, GenObject())
             if not self.genus_specific:
@@ -117,6 +134,8 @@ class Parser(object):
                                                                      self.analysistype)
             except (AttributeError, KeyError):
                 metadata[self.analysistype].reportdir = self.reportpath
+            updated_metadata.append(metadata)
+        return updated_metadata
 
     def __init__(self, args, pipeline=False):
         self.analysistype = args.analysistype
@@ -129,6 +148,8 @@ class Parser(object):
                 # self.targetpath = self.targetpath.rstrip('_full')
                 if 'rmlst' in self.targetpath:
                     self.targetpath = os.path.join(os.path.dirname(self.targetpath), 'rMLST')
+                elif 'cgmlst' in self.targetpath:
+                    self.targetpath = os.path.join(os.path.dirname(self.targetpath), 'cgMLST')
                 elif 'mlst' in self.targetpath:
                     self.targetpath = os.path.join(os.path.dirname(self.targetpath), 'MLST')
         assert os.path.isdir(self.targetpath), 'Cannot locate target path as specified: {}' \
@@ -182,6 +203,10 @@ def objector(kw_dict, start):
         # Set the analysis type based on the arguments provided
         if metadata.resfinder is True:
             metadata.analysistype = 'resfinder'
+            analysis_count += 1
+            analyses.append(metadata.analysistype)
+        elif metadata.cgmlst is True:
+            metadata.analysistype = 'cgmlst'
             analysis_count += 1
             analyses.append(metadata.analysistype)
         elif metadata.virulence is True:
