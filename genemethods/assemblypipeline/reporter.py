@@ -204,6 +204,10 @@ class Reporter(object):
             # PredictedGenesUnder500bp
             data += GenObject.returnattr(sample.prodigal, 'predictedgenesunder500bp',
                                          number=True)
+            # AssemblyDate
+            data += datetime.now().strftime('%Y-%m-%d') + ','
+            # PipelineVersion
+            data += self.commit + ','
             # Append a new line to the end of the results for this sample
             data += '\n'
         # Replace any NA values with -
@@ -279,15 +283,13 @@ class Reporter(object):
 
     def run_quality_reporter(self):
         run_name = os.path.split(self.path)[-1]
-        data = 'RunName,SequencingDate,AssemblyDate,Analyst,ClusterDensity,PercentOverQ30,NumberofClustersPF,' \
-               'PercentReadsPhiX,ErrorRate, LengthForwardRead,LengthReverseRead,Flowcell,MachineName,PipelineCommit\n'
+        data = 'RunName,SequencingDate,Analyst,ClusterDensity,PercentOverQ30,NumberofClustersPF,' \
+               'PercentReadsPhiX,ErrorRate, LengthForwardRead,LengthReverseRead,Flowcell,MachineName\n'
         for sample in self.metadata:
             # RunName
             data += '{rn},'.format(rn=run_name)
             # SequencingDate
             data += GenObject.returnattr(sample.run, 'Date')
-            # AssemblyDate
-            data += datetime.now().strftime('%Y-%m-%d')
             # Analyst
             data += GenObject.returnattr(sample.run, 'InvestigatorName')
             # ClusterDensity
@@ -310,10 +312,8 @@ class Reporter(object):
             data += GenObject.returnattr(sample.run, 'flowcell')
             # MachineName
             data += GenObject.returnattr(sample.run, 'instrument')
-            # PipelineVersion
-            data += self.commit + ','
             break
-        with open(os.path.join(self.reportpath, 'run_quality_report.csv'), 'w') as run_report:
+        with open(os.path.join(self.reportpath, 'run_metrics_report.csv'), 'w') as run_report:
             run_report.write(data)
 
     def __init__(self, inputobject, legacy=False):
@@ -368,6 +368,8 @@ class Reporter(object):
             'PredictedGenesOver1000bp',
             'PredictedGenesOver500bp',
             'PredictedGenesUnder500bp',
+            'AssemblyDate',
+            'PipelineCommit'
         ]
         self.metadata_reporter()
         self.run_quality_reporter()
