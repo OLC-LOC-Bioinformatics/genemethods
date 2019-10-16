@@ -300,23 +300,27 @@ class GeneSeekr(object):
         for sample in metadata:
             # Create a list to store the BLAST results
             data = list()
+
             # Open the sequence profile file as a dictionary
             try:
-                with open(sample[analysistype].report, 'r') as blast_report:
-                    header = [entry for entry in blast_report.readline().split('\t')]
-                if len(header) == 15:
-                    current_fieldnames = fieldnames[:13] + fieldnames[14:]
-                else:
-                    current_fieldnames = fieldnames
-                blastdict = DictReader(open(sample[analysistype].report), fieldnames=current_fieldnames,
-                                       dialect='excel-tab')
-                # Go through each BLAST result
-                for row in blastdict:
-                    # Ignore the headers
-                    if row['query_id'].startswith(fieldnames[0]):
-                        pass
+                # Load the first line of the report
+                with open(sample[analysistype].report, 'r') as report:
+                    header_line = report.readline().strip()
+                # Split the header on tabs
+                header_list = header_line.split('\t')
+                # Check to see if the header has already been added. Skip this step if it has been added.
+                if header_list[0] != fieldnames[0]:
+                    with open(sample[analysistype].report, 'r') as blast_report:
+                        header = [entry for entry in blast_report.readline().split('\t')]
+                    if len(header) == 15:
+                        current_fieldnames = fieldnames[:13] + fieldnames[14:]
                     else:
-                        # Create the subject length variable - if the sequences are DNA (e.g. blastn), use the subject
+                        current_fieldnames = fieldnames
+                    blastdict = DictReader(open(sample[analysistype].report), fieldnames=current_fieldnames,
+                                           dialect='excel-tab')
+                    # Go through each BLAST result
+                    for row in blastdict:
+                        # Create the subject length variable - if the sequences are DNA (blastn), use the subject
                         # length as usual; if the sequences are protein (e.g. tblastx), use the subject length / 3
                         if program == 'blastn' or program == 'blastp' or program == 'blastx':
                             subject_length = float(row['subject_length'])
@@ -331,17 +335,17 @@ class GeneSeekr(object):
                         row['percent_match'] = percentidentity
                         # Add the updated row to the list
                         data.append(row)
-                # Overwrite the original BLAST outputs to include headers, and the percent match
-                with open(sample[analysistype].report, 'w') as updated_report:
-                    # Add the header
-                    updated_report.write('{headers}\n'.format(headers='\t'.join(fieldnames)))
-                    # Add the results
-                    for row in data:
-                        for header in fieldnames:
-                            # Write the value from the row with the header as the key
-                            updated_report.write('{value}\t'.format(value=row[header]))
-                        # Add a newline for each result
-                        updated_report.write('\n')
+                    # Overwrite the original BLAST outputs to include headers, and the percent match
+                    with open(sample[analysistype].report, 'w') as updated_report:
+                        # Add the header
+                        updated_report.write('{headers}\n'.format(headers='\t'.join(fieldnames)))
+                        # Add the results
+                        for row in data:
+                            for header in fieldnames:
+                                # Write the value from the row with the header as the key
+                                updated_report.write('{value}\t'.format(value=row[header]))
+                            # Add a newline for each result
+                            updated_report.write('\n')
             except FileNotFoundError:
                 pass
 
