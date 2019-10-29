@@ -449,33 +449,38 @@ class GeneSippr(object):
                             sample[self.analysistype].combined_metadata_results = dict()
                             # Iterate through all the genes present in the analyses for the sample
                             for gene in sorted(sample[self.analysistype].allelenames):
-                                refallele = self.profiledata[sample[self.analysistype].profile][seqtype][gene]
-                                # Set the allele and percent id from the dictionary's keys and values, respectively
-                                allele = \
-                                    list(self.resultprofile[sample.name][seqtype][sample[self.analysistype].matches]
-                                         [gene].keys())[0]
-                                percentid = \
-                                    list(self.resultprofile[sample.name][seqtype][sample[self.analysistype].matches]
-                                         [gene].values())[0]
-
-                                gene_allele = '{gene}_{allele}'.format(gene=gene,
-                                                                       allele=allele)
-                                sample[self.analysistype].combined_metadata_results[gene_allele] = percentid
                                 try:
-                                    if refallele and refallele != allele:
-                                        if 0 < float(percentid) < 100:
-                                            row += '{} ({:.2f}%),'.format(allele, float(percentid))
+                                    refallele = self.profiledata[sample[self.analysistype].profile][seqtype][gene]
+                                    # Set the allele and percent id from the dictionary's keys and values, respectively
+                                    allele = \
+                                        list(self.resultprofile[sample.name][seqtype][sample[self.analysistype].matches]
+                                             [gene].keys())[0]
+                                    percentid = \
+                                        list(self.resultprofile[sample.name][seqtype][sample[self.analysistype].matches]
+                                             [gene].values())[0]
+
+                                    gene_allele = '{gene}_{allele}'.format(gene=gene,
+                                                                           allele=allele)
+                                    sample[self.analysistype].combined_metadata_results[gene_allele] = percentid
+                                    try:
+                                        if refallele and refallele != allele:
+                                            if 0 < float(percentid) < 100:
+                                                row += '{} ({:.2f}%),'.format(allele, float(percentid))
+                                            else:
+                                                row += '{} ({}),'.format(allele, refallele)
                                         else:
-                                            row += '{} ({}),'.format(allele, refallele)
-                                    else:
-                                        # Add the allele and % id to the row (only add the % identity if it is not 100%)
-                                        if 0 < float(percentid) < 100:
-                                            row += '{} ({:.2f}%),'.format(allele, float(percentid))
-                                        else:
-                                            row += '{},'.format(allele)
-                                    self.referenceprofile[sample.name][gene] = allele
-                                except ValueError:
+                                            # Add the allele and % id to the row (only add the % identity if it is
+                                            # not 100%)
+                                            if 0 < float(percentid) < 100:
+                                                row += '{} ({:.2f}%),'.format(allele, float(percentid))
+                                            else:
+                                                row += '{},'.format(allele)
+                                        self.referenceprofile[sample.name][gene] = allele
+                                    except ValueError:
+                                        pass
+                                except KeyError:
                                     pass
+
                             # Add a newline
                             row += '\n'
                         #

@@ -391,8 +391,8 @@ class GeneSeekr(object):
                         # Remove unwanted pipes added to the name
                         target = row['subject_id'].lstrip('gb|').rstrip('|') if '|' in row['subject_id'] else \
                             row['subject_id']
-                        row['subject_id'] = row['subject_id'].lstrip('gb|').rstrip('|') if '|' in row['subject_id'] else \
-                            row['subject_id']
+                        row['subject_id'] = row['subject_id'].lstrip('gb|').rstrip('|') if '|' in row['subject_id'] \
+                            else row['subject_id']
                         # If the percent identity is greater than the cutoff
                         if percentidentity >= cutoff:
                             # Append the hit dictionary to the list
@@ -470,8 +470,8 @@ class GeneSeekr(object):
                         percentidentity = float('{:0.2f}'.format((float(row['positives']) - float(row['gaps'])) /
                                                                  subject_length * 100))
                         # Remove unwanted pipes added to the name
-                        row['subject_id'] = row['subject_id'].lstrip('gb|').rstrip('|') if '|' in row['subject_id'] else \
-                            row['subject_id']
+                        row['subject_id'] = row['subject_id'].lstrip('gb|').rstrip('|') if '|' in row['subject_id'] \
+                            else row['subject_id']
                         target = row['subject_id']
                         # Extract the genus name. Use the subject id as a key in the dict of the reference db.
                         # It will return the record e.g. gi|1018196593|ref|NR_136472.1| Escherichia marmotae
@@ -670,8 +670,8 @@ class GeneSeekr(object):
                         for row in sample[analysistype].results[contig]:
                             # Initialise variable to reduce the number of times row['value'] needs to be typed
                             # Remove unwanted pipes added to the name
-                            row['subject_id'] = row['subject_id'].lstrip('gb|').rstrip('|') if '|' in row['subject_id'] else \
-                            row['subject_id']
+                            row['subject_id'] = row['subject_id'].lstrip('gb|').rstrip('|') \
+                                if '|' in row['subject_id'] else row['subject_id']
                             contig = row['query_id']
                             high = row['high']
                             low = row['low']
@@ -1402,7 +1402,6 @@ class GeneSeekr(object):
                         if sample[analysistype].createreport:
                             sample[analysistype].totaldepth = list()
                             # Add the sample to the report if it matches the current genus
-                            # if genus == sample.general.closestrefseqgenus:
                             data += '{},{},'.format(sample.name, genus)
                             # Initialise a variable to store the number of GDCS genes were matched
                             count = 0
@@ -1504,7 +1503,7 @@ class GeneSeekr(object):
             sample[analysistype].h_genes = ['-']
             sample[analysistype].h_set = ['-']
             if sample.general.bestassemblyfile != 'NA':
-                if sample.general.closestrefseqgenus == 'Escherichia':
+                if sample.general.closestrefseqgenus in ['Escherichia', 'Shigella']:
                     o = dict()
                     h = dict()
                     for result, percentid in sample[analysistype].blastresults.items():

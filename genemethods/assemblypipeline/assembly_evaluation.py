@@ -85,7 +85,7 @@ class AssemblyEvaluation(object):
                         if len(sample.general.trimmedcorrectedfastqfiles) == 1 \
                         else ' -1 {forward} -2 {reverse}'.format(forward=sample.general.trimmedcorrectedfastqfiles[0],
                                                                  reverse=sample.general.trimmedcorrectedfastqfiles[1])
-                    sample.quast.map_command += ' -p {threads} | ' \
+                    sample.quast.map_command += ' -p {threads} -X 1000 | ' \
                                                 'samtools view -@ {threads} -h -F 4 -bT {target} - | ' \
                                                 'samtools sort - -@ {threads} -o {sortedbam}'\
                         .format(threads=self.cpus,

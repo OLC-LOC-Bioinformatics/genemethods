@@ -25,7 +25,7 @@ class Reporter(object):
             # Genus
             data += GenObject.returnattr(sample.general, 'closestrefseqgenus')
             # SamplePurity
-            data += GenObject.returnattr(sample.confindr, 'contam_status')
+            data += GenObject.returnattr(sample.confindr, 'num_contaminated_snvs')
             # N50
             n50 = GenObject.returnattr(sample.quast, 'N50',
                                        number=True)
@@ -79,18 +79,18 @@ class Reporter(object):
                 data += 'new,'
 
             # cgMLST
-            try:
-                if type(sample.cgmlst.sequencetype) is list:
-                    if sample.cgmlst.sequencetype:
-                        cgmlst_seq_type = ';'.join(sorted(sample.cgmlst.sequencetype)).rstrip(';') + ','
-                    else:
-                        cgmlst_seq_type = 'ND,'
-                else:
-                    cgmlst_seq_type = GenObject.returnattr(sample.cgmlst, 'sequencetype')
-                    # cgmlst_seq_type = cgmlst_seq_type if cgmlst_seq_type != 'ND,' else 'new,'
-                data += cgmlst_seq_type
-            except AttributeError:
-                data += 'ND,'
+            # try:
+            #     if type(sample.cgmlst.sequencetype) is list:
+            #         if sample.cgmlst.sequencetype:
+            #             cgmlst_seq_type = ';'.join(sorted(sample.cgmlst.sequencetype)).rstrip(';') + ','
+            #         else:
+            #             cgmlst_seq_type = 'ND,'
+            #     else:
+            #         cgmlst_seq_type = GenObject.returnattr(sample.cgmlst, 'sequencetype')
+            #         # cgmlst_seq_type = cgmlst_seq_type if cgmlst_seq_type != 'ND,' else 'new,'
+            #     data += cgmlst_seq_type
+            # except AttributeError:
+            #     data += 'ND,'
             # MLST_Result
             try:
                 if sample.mlst.matches == 7:
@@ -208,6 +208,10 @@ class Reporter(object):
             data += datetime.now().strftime('%Y-%m-%d') + ','
             # PipelineVersion
             data += self.commit + ','
+            # Name of the database used in the analyses
+            data += os.path.split(self.reffilepath)[-1] + ','
+            # Datebase download date
+            data += self.download_date
             # Append a new line to the end of the results for this sample
             data += '\n'
         # Replace any NA values with -
@@ -322,13 +326,14 @@ class Reporter(object):
         self.reportpath = inputobject.reportpath
         self.starttime = inputobject.starttime
         self.path = inputobject.path
+        self.reffilepath = inputobject.reffilepath
         # Define the headers to be used in the metadata report
         # 'AssemblyQuality',
         self.headers = [
             'SeqID',
             'SampleName',
             'Genus',
-            'SamplePurity',
+            'ConfindrContamSNVs',
             'N50',
             'NumContigs',
             'TotalLength',
@@ -342,7 +347,6 @@ class Reporter(object):
             '16S_result',
             'CoreGenesPresent',
             'rMLST_Result',
-            'cgMLST_Result',
             'MLST_Result',
             'MLST_gene_1_allele',
             'MLST_gene_2_allele',
@@ -369,8 +373,15 @@ class Reporter(object):
             'PredictedGenesOver500bp',
             'PredictedGenesUnder500bp',
             'AssemblyDate',
-            'PipelineCommit'
+            'PipelineVersion',
+            'Database',
+            'DatabaseDownloadDate'
         ]
+        try:
+            with open(os.path.join(self.reffilepath, 'download_date'), 'r') as download_date:
+                self.download_date = download_date.readline().rstrip()
+        except FileNotFoundError:
+            self.download_date = 'ND'
         self.metadata_reporter()
         self.run_quality_reporter()
         if legacy:

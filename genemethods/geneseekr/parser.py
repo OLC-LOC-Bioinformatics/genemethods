@@ -75,9 +75,13 @@ class Parser(object):
         elif self.analysistype != 'GDCS':
             metadata[self.analysistype].targetpath = os.path.join(self.targetpath, metadata.general.referencegenus)
         else:
-            metadata[self.analysistype].targetpath = os.path.join(self.targetpath,
-                                                                  'GDCS',
-                                                                  metadata.general.referencegenus)
+            if metadata.general.referencegenus in ['Escherichia', 'Shigella']:
+                metadata[self.analysistype].targetpath = os.path.join(self.targetpath,
+                                                                      'GDCS', 'Escherichia')
+            else:
+                metadata[self.analysistype].targetpath = os.path.join(self.targetpath,
+                                                                      'GDCS',
+                                                                      metadata.general.referencegenus)
         metadata[self.analysistype].targets = \
             sorted(glob(os.path.join(metadata[self.analysistype].targetpath, '*.tfa')))
         try:
