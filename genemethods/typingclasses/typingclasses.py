@@ -973,7 +973,7 @@ class Univec(BLAST):
                                         # Parse the reference file in order to extract the description of the BLAST hits
                                         for entry in SeqIO.parse(sample[self.analysistype].combinedtargets, 'fasta'):
                                             # Find the corresponding entry for the gene
-                                            if entry.id == gene:
+                                            if entry.id.lstrip('g') == gene:
                                                 # Cut out the description from the entry.description using regex
                                                 # e.g. 'gnl|uv|X66730.1:1-2687-49 B.bronchiseptica plasmid pBBR1 genes
                                                 # for mobilization and replication' only save the string after '2687-49'
