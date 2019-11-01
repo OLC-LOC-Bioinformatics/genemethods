@@ -337,7 +337,7 @@ class Quality(object):
         # Add all the trimmed files to the metadata
         logging.info('Fastq files trimmed')
 
-    def contamination_finder(self, input_path=None, report_path=None):
+    def contamination_finder(self, input_path=None, report_path=None, debug=False):
         """
         Helper function to get confindr integrated into the assembly pipeline
         """
@@ -354,28 +354,21 @@ class Quality(object):
         pipeline_report = os.path.join(reportpath, 'confindr_report.csv')
         # Only proceed if the confindr report doesn't exist
         if not os.path.isfile(confindr_report):
-            # # Create an object to store attributes to pass to confinder
-            # Clear and recreate the output folder
-            try:
-                shutil.rmtree(reportpath)
-            except IOError:
-                pass
             make_path(reportpath)
             # Run confindr
             systemcall = 'confindr.py -i {input_dir} -o {output_dir} -d {database_dir} --rmlst -bf 0.05 ' \
-                         '--cross_details -k'\
+                         '--cross_details'\
                 .format(input_dir=input_dir,
                         output_dir=os.path.join(input_dir, 'confindr'),
                         database_dir=os.path.join(self.reffilepath, 'ConFindr'))
+            # Keep the files if the debug option is specified
+            if debug:
+                systemcall += ' -k'
             # Run the call
             out, err = run_subprocess(systemcall)
             write_to_logfile(systemcall, systemcall, self.logfile, None, None, None, None)
             write_to_logfile(out, err, self.logfile, None, None, None, None)
             logging.info('Contamination detection complete!')
-        try:
-            pass
-        except Exception as e:
-            pass
         # Load the confindr report into a dictionary using pandas
         # https://stackoverflow.com/questions/33620982/reading-csv-file-as-dictionary-using-pandas
         confindr_results = pandas.read_csv(confindr_report, index_col=0).T.to_dict()
