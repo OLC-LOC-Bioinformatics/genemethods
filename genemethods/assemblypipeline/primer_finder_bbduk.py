@@ -415,8 +415,8 @@ class PrimerFinder(object):
                                            task='blastn-short',
                                            num_alignments=1000000,
                                            num_threads=self.threads,
-                                           outfmt="'6 qseqid sseqid positive mismatch gaps "
-                                                  "evalue bitscore slen length qstart qend qseq sstart send sseq'",
+                                           outfmt="6 qseqid sseqid positive mismatch gaps evalue bitscore slen length "
+                                                  "qstart qend qseq sstart send sseq",
                                            out=sample[self.analysistype].report)
             # Save the blast command in the metadata
             sample[self.analysistype].blastcommand = str(blastn)
