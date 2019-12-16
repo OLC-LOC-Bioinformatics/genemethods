@@ -571,7 +571,7 @@ class GeneSippr(object):
             if 'mlst' in self.targetpath.lower():
                 if 'rmlst' in self.targetpath.lower():
                     self.targetpath = os.path.join(os.path.dirname(self.targetpath), 'rMLST')
-                if 'cgmlst' in self.targetpath.lower():
+                elif 'cgmlst' in self.targetpath.lower():
                     self.targetpath = os.path.join(os.path.dirname(self.targetpath), 'cgMLST')
                 elif 'mlst' in self.targetpath.lower():
                     self.targetpath = os.path.join(os.path.dirname(self.targetpath), 'MLST')
