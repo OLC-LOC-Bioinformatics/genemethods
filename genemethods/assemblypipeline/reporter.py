@@ -276,8 +276,6 @@ class Reporter(object):
             data += GenObject.returnattr(sample.mash, 'nummatches')
             # 16S_result
             data += GenObject.returnattr(sample.sixteens_full, 'sixteens_match')
-            # CoreGenesPresent
-            data += GenObject.returnattr(sample.gdcs, 'coreresults')
             # rMLST_Result
             try:
                 # If the number of matches to the closest reference profile is 53, return the profile number
@@ -293,7 +291,6 @@ class Reporter(object):
                     data += 'new,'
             except AttributeError:
                 data += 'new,'
-
             # MLST_Result
             try:
                 if sample.mlst.matches == 7:
@@ -329,6 +326,8 @@ class Reporter(object):
             except AttributeError:
                 # data += '-,-,-,-,-,-,-,'
                 data += 'ND,ND,ND,ND,ND,ND,ND,'
+            # CoreGenesPresent
+            data += GenObject.returnattr(sample.gdcs, 'coreresults')
             # E_coli_Serotype
             try:
                 # If no O-type was found, set the output to be O-untypeable
@@ -563,8 +562,8 @@ class Reporter(object):
             'SeqID',
             'SampleName',
             'Genus',
-            'Date',
-            'InvestigatorName',
+            'SequencingDate',
+            'Analyst',
             'SamplePurity',
             'N50',
             'NumContigs',
@@ -577,7 +576,6 @@ class Reporter(object):
             'MASH_ReferenceGenome',
             'MASH_NumMatchingHashes',
             '16S_result',
-            'CoreGenesPresent',
             'rMLST_Result',
             'MLST_Result',
             'MLST_gene_1_allele',
@@ -587,6 +585,7 @@ class Reporter(object):
             'MLST_gene_5_allele',
             'MLST_gene_6_allele',
             'MLST_gene_7_allele',
+            'CoreGenesPresent',
             'E_coli_Serotype',
             'SISTR_serovar_antigen',
             'SISTR_serovar_cgMLST',
