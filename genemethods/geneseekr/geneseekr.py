@@ -470,8 +470,9 @@ class GeneSeekr(object):
                         percentidentity = float('{:0.2f}'.format((float(row['positives']) - float(row['gaps'])) /
                                                                  subject_length * 100))
                         # Remove unwanted pipes added to the name
-                        row['subject_id'] = row['subject_id'].lstrip('gb|').rstrip('|') if '|' in row['subject_id'] \
-                            else row['subject_id']
+                        for prefix in ['gb|', 'gi|']:
+                            if prefix in row:
+                                row['subject_id'] = row['subject_id'].lstrip(prefix).rstrip('|')
                         target = row['subject_id']
                         # Extract the genus name. Use the subject id as a key in the dict of the reference db.
                         # It will return the record e.g. gi|1018196593|ref|NR_136472.1| Escherichia marmotae

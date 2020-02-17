@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from olctools.accessoryFunctions.accessoryFunctions import run_subprocess
+from argparse import ArgumentParser
 import logging
 import os
 
@@ -16,24 +17,27 @@ class PhiX(object):
             # Try to extract the relevant information
             try:
                 self.run_interop_summary()
-                self.interop_parse()
+                if self.pipeline:
+                    self.interop_parse()
             # interop.py_interop_comm.file_not_found_exception: RunParameters.xml required for legacy run folders with
             # missing channel names
             except:
+                if self.pipeline:
+                    for sample in self.metadata:
+                        sample.run.actual_yield = 'ND'
+                        sample.run.projected_yield = 'ND'
+                        sample.run.phix_aligned = 'ND'
+                        sample.run.error_rate = 'ND'
+                        sample.run.over_q30 = 'ND'
+        else:
+            if self.pipeline:
+                # Create attributes reflecting the lack of the InterOp folder
                 for sample in self.metadata:
                     sample.run.actual_yield = 'ND'
                     sample.run.projected_yield = 'ND'
                     sample.run.phix_aligned = 'ND'
                     sample.run.error_rate = 'ND'
                     sample.run.over_q30 = 'ND'
-        else:
-            # Create attributes reflecting the lack of the InterOp folder
-            for sample in self.metadata:
-                sample.run.actual_yield = 'ND'
-                sample.run.projected_yield = 'ND'
-                sample.run.phix_aligned = 'ND'
-                sample.run.error_rate = 'ND'
-                sample.run.over_q30 = 'ND'
 
     def run_interop_summary(self):
         """
@@ -89,9 +93,29 @@ class PhiX(object):
                 sample.run.over_q30 = 'ND'
                 sample.cluster_density = 'ND'
 
-    def __init__(self, inputobject):
+    def __init__(self, inputobject, pipeline=True):
         self.path = inputobject.path
-        self.metadata = inputobject.runmetadata.samples
-        self.reportpath = inputobject.reportpath
+        self.reportpath = os.path.join(self.path, 'reports')
         self.interop_summary_report = os.path.join(self.reportpath, 'interop_summary_report.csv')
-        self.logfile = inputobject.logfile
+        self.pipeline = pipeline
+        if self.pipeline:
+            self.metadata = inputobject.runmetadata.samples
+        else:
+            self.metadata = list()
+
+
+def cli():
+    # Parser for arguments
+    parser = ArgumentParser(description='Extract run information from InterOp folder')
+    parser.add_argument('-p', '--path',
+                        required=True,
+                        help='Path to folder containing InterOp folder')
+    # Get the arguments into an object
+    arguments = parser.parse_args()
+    interop = PhiX(inputobject=arguments,
+                   pipeline=False)
+    interop.main()
+
+
+if __name__ == '__main__':
+    cli()

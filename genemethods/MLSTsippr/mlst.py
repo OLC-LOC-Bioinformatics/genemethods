@@ -141,10 +141,17 @@ class GeneSippr(object):
                     self.profiledata[sequenceprofile][st] = allele_comprehension
             else:
                 for row in profile:
+                    # Extract the sequence type from the dictionary
                     st = row[profile.fieldnames[0]]
-                    allele_comprehension = {gene: allele for gene, allele in row.items() if gene in geneset}
+                    # Remove the sequence type key from the dictionary
+                    del(row[profile.fieldnames[0]])
+                    # allele_comprehension = {gene: allele for gene, allele in row.items() if gene in geneset}
                     # Populate the profile dictionary with profile number: {gene: allele}. Use the first field name,
-                    self.profiledata[sequenceprofile][st] = allele_comprehension
+                    # self.profiledata[sequenceprofile][st] = {gene: allele for gene, allele in row.items()}
+                    # print(self.profiledata[sequenceprofile][st])
+                    self.profiledata[sequenceprofile][st] = dict(row)
+                    # print(self.profiledata[sequenceprofile][st])
+                    # quit()
 
     def sequencetyper(self):
         """
@@ -152,6 +159,7 @@ class GeneSippr(object):
         """
         logging.info('Performing sequence typing')
         for sample in self.runmetadata.samples:
+            sample[self.analysistype].new_alleles = list()
             if sample.general.bestassemblyfile != 'NA':
                 if type(sample[self.analysistype].allelenames) == list:
                     # Initialise variables
@@ -164,9 +172,13 @@ class GeneSippr(object):
                         profiledata = self.profiledata[sample[self.analysistype].profile]
                         # Calculate the number of allele matches between each sequence type and the results
                         best_seqtype = dict()
+                        best_count = 0
+                        # Initialise the number of mismatches to be the maximum possible
+                        mismatch_count = len(sample[self.analysistype].allelenames)
                         for sequencetype in profiledata:
                             # Initialise a counter
                             count = 0
+                            seq_type_mismatches = 0
                             # Iterate through each gene for the sequence type
                             for gene, refallele in profiledata[sequencetype].items():
                                 # Use the gene to extract the calculated allele
@@ -174,15 +186,37 @@ class GeneSippr(object):
                                 # Increment the count on a match
                                 if refallele == allele:
                                     count += 1
-                            # Add the sequence type to the set of sequence types with the number of matches as the key
-                            try:
-                                best_seqtype[count].add(sequencetype)
-                            except KeyError:
-                                best_seqtype[count] = set()
-                                best_seqtype[count].add(sequencetype)
+                                else:
+                                    seq_type_mismatches += 1
+                                # Exit the loop if the sequence type already has more mismatches than the best match
+                                if seq_type_mismatches > mismatch_count:
+                                    break
+                            # Compare the current number of matches against the previous best match
+                            if count > best_count:
+                                # Set the number of mismatches to this new 'best' number of mismatches
+                                mismatch_count = seq_type_mismatches
+                                # Add the seq type to the set of sequence types with the number of matches as the key
+                                try:
+                                    best_seqtype[count].add(sequencetype)
+                                except KeyError:
+                                    best_seqtype[count] = set()
+                                    best_seqtype[count].add(sequencetype)
+                                try:
+                                    # Delete the old best result and set the best count as the count
+                                    del(best_seqtype[best_count])
+                                except KeyError:
+                                    pass
+                                # Update the best count variable
+                                best_count = count
+                            # If the current count matches the previous best count, add the sequence type to the set
+                            elif count == best_count:
+                                try:
+                                    best_seqtype[count].add(sequencetype)
+                                except KeyError:
+                                    best_seqtype[count] = set()
+                                    best_seqtype[count].add(sequencetype)
                         # Find the highest number of matches from the dictionary
-                        best_count, best_type = sorted(best_seqtype.items(), key=operator.itemgetter(0),
-                                                       reverse=True)[0]
+                        best_type = best_seqtype[best_count]
                         # Deal with multiple allele matches
                         for gene in sample[self.analysistype].allelenames:
                             # Clear the appropriate count and lists
@@ -253,6 +287,13 @@ class GeneSippr(object):
                                     elif allele == sortedrefallele and sortedrefallele == 'N':
                                         # Increment the number of matches to each profile
                                         self.bestmatch[genome][sequencetype] += 1
+                                    elif 98.00 < float(percentid) < 100.00 and self.analysistype == 'cgmlst' and \
+                                            allele == sortedrefallele:
+                                        # self.bestmatch[genome][sequencetype] += 1
+                                        #
+                                        gene_allele = '{gene}_{refallele}'.format(gene=gene, refallele=refallele)
+                                        if gene_allele not in sample[self.analysistype].new_alleles:
+                                            sample[self.analysistype].new_alleles.append(gene_allele)
                         # Get the best number of matches
                         # From: https://stackoverflow.com/questions/613183/sort-a-python-dictionary-by-value
                         try:
@@ -261,12 +302,22 @@ class GeneSippr(object):
                         # If there are no matches, set :sortedmatches to zero
                         except IndexError:
                             sortedmatches = 0
+                        #
+                        if genome not in self.resultprofile:
+                            self.resultprofile[genome] = dict()
                         # Otherwise, the query profile matches the reference profile
                         if int(sortedmatches) == header:
                             # Iterate through best match
                             for sequencetype, matches in self.bestmatch[genome].items():
+
                                 if matches == sortedmatches:
                                     for gene in profiledata[sequencetype]:
+                                        if sequencetype not in self.resultprofile[genome]:
+                                            self.resultprofile[genome][sequencetype] = dict()
+                                        if sortedmatches not in self.resultprofile[genome][sequencetype]:
+                                            self.resultprofile[genome][sequencetype][sortedmatches] = dict()
+                                        if gene not in self.resultprofile[genome][sequencetype][sortedmatches]:
+                                            self.resultprofile[genome][sequencetype][sortedmatches][gene] = dict()
                                         # Populate resultProfile with the genome, best match to profile, # of matches
                                         # to the profile, gene, query allele(s), reference allele(s), and % identity
                                         self.resultprofile[genome][sequencetype][sortedmatches][gene][
@@ -295,6 +346,12 @@ class GeneSippr(object):
                                             sortedrefallele = " ".join(str(allele) for allele in sorted(intrefallele))
                                         else:
                                             sortedrefallele = refallele
+                                        if sequencetype not in self.resultprofile[genome]:
+                                            self.resultprofile[genome][sequencetype] = dict()
+                                        if sortedmatches not in self.resultprofile[genome][sequencetype]:
+                                            self.resultprofile[genome][sequencetype][sortedmatches] = dict()
+                                        if gene not in self.resultprofile[genome][sequencetype][sortedmatches]:
+                                            self.resultprofile[genome][sequencetype][sortedmatches][gene] = dict()
                                         # Populate self.mlstseqtype with the genome, best match to profile, # of matches
                                         # to the profile, gene, query allele(s), reference allele(s), and % identity
                                         if self.analysistype == 'mlst':
@@ -318,7 +375,13 @@ class GeneSippr(object):
                                             sample[self.analysistype].sequencetype.add(sequencetype)
                                         sample[self.analysistype].matchestosequencetype = matches
                         elif sortedmatches == 0:
+                            if 'NA' not in self.resultprofile[genome]:
+                                self.resultprofile[genome]['NA'] = dict()
+                            if sortedmatches not in self.resultprofile[genome]['NA']:
+                                self.resultprofile[genome]['NA'][sortedmatches] = dict()
                             for gene in sample[self.analysistype].allelenames:
+                                if gene not in self.resultprofile[genome]['NA'][sortedmatches]:
+                                    self.resultprofile[genome]['NA'][sortedmatches][gene] = dict()
                                 # Populate the results profile with negative values for sequence type and sorted matches
                                 self.resultprofile[genome]['NA'][sortedmatches][gene]['NA'] = 0
                             # Add the new profile to the profile file (if the option is enabled)
@@ -428,6 +491,14 @@ class GeneSippr(object):
                                 pass
                             # The number of matches to the profile
                             sample[self.analysistype].matches = list(self.resultprofile[sample.name][seqtype].keys())[0]
+                            print('matches', sample.name, seqtype, sample[self.analysistype].matchestosequencetype,
+                                  sample[self.analysistype].matches)
+                            # Include the total number of genes in the database for cgMLST results
+                            if self.analysistype == 'cgmlst':
+                                matches = '{matches}/{total}'.format(matches=sample[self.analysistype].matches,
+                                                                     total=len(sample[self.analysistype].allelenames))
+                            else:
+                                matches = sample[self.analysistype].matches
                             # If this is the first of one or more sequence types, include the sample name
                             if additional_fields:
                                 row += '{name},{mashgenus},{additional},{seqtype},{matches},'\
@@ -437,13 +508,13 @@ class GeneSippr(object):
                                                                     seqtype][header].replace(',', ';')
                                                                 for header in additional_fields),
                                             seqtype=seqtype,
-                                            matches=sample[self.analysistype].matches)
+                                            matches=matches)
                             else:
                                 row += '{name},{mashgenus},{seqtype},{matches},' \
                                     .format(name=sample.name,
                                             mashgenus=genus,
                                             seqtype=seqtype,
-                                            matches=sample[self.analysistype].matches)
+                                            matches=matches)
                             # Create an attribute to store the results in a format suitable for parsing for creating
                             # the final combinedMetadata report
                             sample[self.analysistype].combined_metadata_results = dict()
@@ -653,9 +724,9 @@ class GeneSippr(object):
         self.plusdict = dict()
         self.matchdict = dict()
         self.bestdict = defaultdict(make_dict)
-        self.bestmatch = defaultdict(int)
+        self.bestmatch = defaultdict(make_dict)
         self.mlstseqtype = defaultdict(make_dict)
-        self.resultprofile = defaultdict(make_dict)
+        self.resultprofile = dict()
         self.referenceprofile = defaultdict(make_dict)
         self.report = os.path.join(self.reportpath, self.analysistype + '.csv')
         self.profiledata = defaultdict(make_dict)

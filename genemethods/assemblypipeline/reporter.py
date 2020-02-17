@@ -166,7 +166,7 @@ class Reporter(object):
             except AttributeError:
                 data += 'ND,'
             # Vtyper_Profile
-            data += GenObject.returnattr(sample.legacy_vtyper, 'toxinprofile')
+            data += GenObject.returnattr(sample.verotoxin, 'verotoxin_subtypes_set')
             # AMR_Profile and resistant/sensitive status
             if sample.resfinder_assembled.pipelineresults:
                 # Profile
@@ -368,7 +368,7 @@ class Reporter(object):
             except AttributeError:
                 data += 'ND,'
             # Vtyper_Profile
-            data += GenObject.returnattr(sample.legacy_vtyper, 'toxinprofile')
+            data += GenObject.returnattr(sample.verotoxin, 'verotoxin_subtypes_set')
             # AMR_Profile and resistant/sensitive status
             if sample.resfinder_assembled.pipelineresults:
                 # Profile
@@ -424,12 +424,12 @@ class Reporter(object):
             data += GenObject.returnattr(sample.run, 'flowcell')
             # MachineName
             data += GenObject.returnattr(sample.run, 'instrument')
+            # PipelineVersion
+            data += self.commit + ','
             # AssemblyDate
             data += datetime.now().strftime('%Y-%m-%d') + ','
             # SamplePurity
             data += GenObject.returnattr(sample.confindr, 'num_contaminated_snvs')
-            # PipelineVersion
-            data += self.commit + ','
             # cgMLST
             try:
                 if type(sample.cgmlst.sequencetype) is list:

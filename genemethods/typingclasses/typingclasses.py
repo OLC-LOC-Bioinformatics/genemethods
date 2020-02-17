@@ -3,12 +3,12 @@ from olctools.accessoryFunctions.accessoryFunctions import combinetargets, filer
     make_path, run_subprocess, write_to_logfile
 from olctools.accessoryFunctions.metadataprinter import MetadataPrinter
 from genemethods.typingclasses.resistance import ResistanceNotes
-from genemethods.sipprverse_reporter.reports import Reports
 from genemethods.assemblypipeline.GeneSeekr import GeneSeekr
 from genemethods.sipprCommon.objectprep import Objectprep
 from genemethods.sipprCommon.sippingmethods import Sippr
 from genemethods.genesippr.genesippr import GeneSippr
 from genemethods.serosippr.serosippr import SeroSippr
+from genemethods.sipprCommon.kma_wrapper import KMA
 from genemethods.geneseekr.blast import BLAST
 from Bio.Alphabet import IUPAC
 from Bio.Seq import Seq
@@ -159,7 +159,7 @@ class GDCS(object):
                         = value.split('/')
                 elif header == 'rMLST_genes':
                     sample[self.analysistype].rmlst_genes_present, \
-                        sample[self.analysistype].rmlst_genes_total \
+                    sample[self.analysistype].rmlst_genes_total \
                         = value.split('/')
         except KeyError:
             pass
@@ -366,13 +366,13 @@ class Serotype(SeroSippr):
                             o_results, h_results = data[1].split(':')
                             sample[self.analysistype].o_set = [o_results.split(' ')[0]]
                             try:
-                                sample[self.analysistype].best_o_pid = o_results.split(' ')[1].replace('(', '')\
+                                sample[self.analysistype].best_o_pid = o_results.split(' ')[1].replace('(', '') \
                                     .replace(')', '')
                             except IndexError:
                                 sample[self.analysistype].best_o_pid = 'ND'
                             sample[self.analysistype].h_set = [h_results.split(' ')[0]]
                             try:
-                                sample[self.analysistype].best_h_pid = h_results.split(' ')[1].replace('(', '')\
+                                sample[self.analysistype].best_h_pid = h_results.split(' ')[1].replace('(', '') \
                                     .replace(')', '')
                             except IndexError:
                                 sample[self.analysistype].best_h_pid = 'ND'
@@ -988,7 +988,7 @@ class Univec(BLAST):
                                                                 desc=description,
                                                                 pi=result['percentidentity'],
                                                                 pc=result['alignment_fraction'] if float(
-                                                                   result['alignment_fraction']) <= 100 else '100.0',
+                                                                    result['alignment_fraction']) <= 100 else '100.0',
                                                                 cont=result['query_id'],
                                                                 start=result['low'],
                                                                 stop=result['high'])
@@ -1003,6 +1003,125 @@ class Univec(BLAST):
             report.write(data)
 
 
+class Verotoxin(KMA):
+
+    def main(self):
+        self.targets()
+        self.index_targets()
+        self.load_kma_db()
+        self.run_kma_mem_mode()
+        self.run_kma()
+        self.unload_kma_db()
+        self.parse_kma_outputs()
+        self.verotoxin_subtyping()
+        self.reporter()
+        self.kma_report()
+
+    def verotoxin_subtyping(self):
+        """
+        Use the virulence results to perform verotoxin subtyping analyses
+        """
+        logging.info('Performing verotoxin subtyping')
+        for sample in self.runmetadata.samples:
+            sample[self.analysistype].verotoxin_subtypes = dict()
+            sample[self.analysistype].verotoxin_subtypes_set = set()
+            sample[self.analysistype].verotoxindict = dict()
+            if sample[self.analysistype].kmaresults:
+                # If there are many results for a sample, don't write the sample name in each line of the report
+                for name, identity in sorted(sample[self.analysistype].kmaresults.items()):
+                    if 'stx' in name:
+                        try:
+                            if ':' in name:
+                                gene, allele, accession, subtype = name.split(':')
+                            else:
+                                gene, accession, subtype = name.split('_')
+                            # Split off the 'stx' from the name
+                            gene_type = gene.split('stx')[-1]
+                            self.dictionary_populate(sample=sample,
+                                                     gene_type=gene_type,
+                                                     subtype=subtype,
+                                                     identity=identity)
+                        # Ignore entries without a subtype
+                        except ValueError:
+                            pass
+                # Perform subtyping - iterate through the three categories of verotoxin genes: vtx1 and vtx2 with
+                # subunits, and vtx2 without a subunit
+                for a_subunit in ['1A', '2A', '2']:
+                    # Use the subunit name to set the name of the B subunit
+                    b_subunit = a_subunit.replace('A', 'B')
+                    # Determine whether the verotoxin gene is vtx1 or vtx2
+                    verotoxin_gene = a_subunit[0]
+                    # If the sample lacks a particular verotoxin subunit, a KeyError will occur. This is fine. Not
+                    # all samples have any/all verotoxin subunits
+                    try:
+                        for subtype, percent_id in sorted(sample[self.analysistype].verotoxindict[a_subunit].items()):
+                            # Create a string to with the desired output name of the gene/subtype
+                            vtx_gene = 'vtx{gene}{subtype}'.format(gene=verotoxin_gene,
+                                                                   subtype=subtype)
+                            # The subunit-less '2' verotoxin gene needs special treatment
+                            if a_subunit != '2':
+                                try:
+                                    # Populate the dictionary with the verotoxin gene: (subunit A %ID, subunit B %ID)
+                                    # e.g. vtx2A: (100.0, 100.0)
+                                    sample[self.analysistype].verotoxin_subtypes[vtx_gene] = \
+                                        (percent_id,
+                                         sample[self.analysistype].verotoxindict[b_subunit][subtype])
+                                    # Add the verotoxin gene to the set of sample subtypes
+                                    sample[self.analysistype].verotoxin_subtypes_set.add(vtx_gene)
+                                except KeyError:
+                                    # There are no 2B genes present in the database for subtype vtx2b, allow a match
+                                    # for this subtype if only the '2A' gene is present
+                                    if a_subunit == '2A' and subtype == 'b':
+                                        sample[self.analysistype].verotoxin_subtypes[vtx_gene] = (percent_id,)
+                                        sample[self.analysistype].verotoxin_subtypes_set.add(vtx_gene)
+                            else:
+                                # Only add the results from the subunit-less gene if it is the only match for that
+                                # subtype. e.g. if vtx2b already is present in the dictionary, do not look at the hits
+                                # for it again
+                                if vtx_gene not in sample[self.analysistype].verotoxin_subtypes:
+                                    sample[self.analysistype].verotoxin_subtypes[vtx_gene] = (percent_id,)
+                                    sample[self.analysistype].verotoxin_subtypes_set.add(vtx_gene)
+                    except KeyError:
+                        pass
+                # Create a string summarizing the verotoxin subtypes present. Create a semi-colon-separated list of the
+                # sorted subtypes e.g. vtx1a;vtx2a;vtx2c if there were subtypes detected. Otherwise, set the subtype
+                # to 'ND'
+                sample[self.analysistype].verotoxin_subtypes_set = \
+                    ';'.join(sorted(sample[self.analysistype].verotoxin_subtypes_set)) \
+                    if sample[self.analysistype].verotoxin_subtypes_set else 'ND'
+            # If there are no results, set the profile to 'ND'
+            else:
+                sample[self.analysistype].verotoxin_subtypes_set = 'ND'
+
+    def dictionary_populate(self, sample, gene_type, subtype, identity):
+        """
+        Populate the supplied nested dictionary with the necessary values. Initialise the dictionary as required
+        """
+        if gene_type not in sample[self.analysistype].verotoxindict:
+            sample[self.analysistype].verotoxindict[gene_type] = dict()
+        if subtype not in sample[self.analysistype].verotoxindict[gene_type]:
+            sample[self.analysistype].verotoxindict[gene_type].update({subtype: identity})
+        if identity > sample[self.analysistype].verotoxindict[gene_type][subtype]:
+            sample[self.analysistype].verotoxindict[gene_type][subtype] = identity
+
+    def reporter(self):
+        """
+        Create a summary report of the verotoxin subtyping
+        """
+        logging.info('Creating verotoxin subtyping summary report')
+        # Initialise a string with the report headers
+        data = 'Strain,ToxinProfile\n'
+        # Set the name of the summary report
+        report = os.path.join(self.reportpath, 'verotoxin_summary.csv')
+        with open(report, 'w') as summary:
+            for sample in self.runmetadata.samples:
+                # Store the subtype string for each sample
+                data += '{sn},{subtypes}\n'.format(sn=sample.name,
+                                                   subtypes=sample[self.analysistype].verotoxin_subtypes_set)
+            # Write the string to the report
+            summary.write(data)
+
+
 class Virulence(GeneSippr):
 
     def runner(self):
@@ -1014,7 +1133,7 @@ class Virulence(GeneSippr):
         if os.path.isfile(vir_report):
             self.report_parse(vir_report)
         else:
-            logging.info('Starting {} analysis pipeline'.format(self.analysistype))
+            logging.info('Starting {at} analysis pipeline'.format(at=self.analysistype))
             if not self.pipeline:
                 general = None
                 for sample in self.runmetadata.samples:
@@ -1024,12 +1143,14 @@ class Virulence(GeneSippr):
                     objects = Objectprep(self)
                     objects.objectprep()
                     self.runmetadata = objects.samples
-            # Run the analyses
-            Sippr(self, self.cutoff)
+            Sippr(inputobject=self,
+                  cutoff=self.cutoff,
+                  k=19,
+                  allow_soft_clips=True)
             # Create the reports
             self.reporter()
-            # Print the metadata
-            MetadataPrinter(self)
+        # Print the metadata
+        MetadataPrinter(self)
 
     def report_parse(self, vir_report):
         """
@@ -1144,7 +1265,7 @@ class Virulence(GeneSippr):
                                 except KeyError:
                                     description = 'ND'
                                 # Populate the results
-                                data += '{samplename},{gene},{subtype},{description},{accession},{identity},{depth}\n'\
+                                data += '{samplename},{gene},{subtype},{description},{accession},{identity},{depth}\n' \
                                     .format(samplename=sample.name,
                                             gene=genename,
                                             subtype=subtype,
@@ -1158,3 +1279,18 @@ class Virulence(GeneSippr):
                     data += sample.name + '\n'
             # Write the strings to the file
             report.write(data)
+
+    def __init__(self, args, pipelinecommit, startingtime, scriptpath, analysistype, cutoff, pipeline, revbait,
+                 allow_soft_clips=False):
+        self.runmetadata = args.runmetadata
+
+        self.path = os.path.join(args.path)
+        try:
+            self.targetpath = os.path.join(args.targetpath, analysistype)
+        except AttributeError:
+            self.targetpath = os.path.join(args.reffilepath, analysistype)
+        self.logfile = args.logfile
+        self.cpus = args.cpus
+        super().__init__(self, pipelinecommit, startingtime, scriptpath, analysistype, cutoff, pipeline,
+                         revbait, allow_soft_clips)
+        self.runner()
