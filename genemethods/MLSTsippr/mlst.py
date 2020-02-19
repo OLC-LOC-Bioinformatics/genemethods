@@ -145,13 +145,8 @@ class GeneSippr(object):
                     st = row[profile.fieldnames[0]]
                     # Remove the sequence type key from the dictionary
                     del(row[profile.fieldnames[0]])
-                    # allele_comprehension = {gene: allele for gene, allele in row.items() if gene in geneset}
-                    # Populate the profile dictionary with profile number: {gene: allele}. Use the first field name,
-                    # self.profiledata[sequenceprofile][st] = {gene: allele for gene, allele in row.items()}
-                    # print(self.profiledata[sequenceprofile][st])
+                    # Populate the profile dictionary with profile number: dictionary of the row
                     self.profiledata[sequenceprofile][st] = dict(row)
-                    # print(self.profiledata[sequenceprofile][st])
-                    # quit()
 
     def sequencetyper(self):
         """
@@ -491,8 +486,6 @@ class GeneSippr(object):
                                 pass
                             # The number of matches to the profile
                             sample[self.analysistype].matches = list(self.resultprofile[sample.name][seqtype].keys())[0]
-                            print('matches', sample.name, seqtype, sample[self.analysistype].matchestosequencetype,
-                                  sample[self.analysistype].matches)
                             # Include the total number of genes in the database for cgMLST results
                             if self.analysistype == 'cgmlst':
                                 matches = '{matches}/{total}'.format(matches=sample[self.analysistype].matches,
@@ -551,12 +544,11 @@ class GeneSippr(object):
                                         pass
                                 except KeyError:
                                     pass
-
                             # Add a newline
                             row += '\n'
-                        #
+                        # Add the row to the string of rows
                         combinedrow += row
-                        #
+                        # Add both the header and the row to the string of all headers and rows
                         combined_header_row += header_row
                         combined_header_row += row
                         if self.analysistype == 'mlst':

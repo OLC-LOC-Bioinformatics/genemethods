@@ -19,8 +19,10 @@ class ECTyper(object):
         Run the ECTyper system call
         """
         logging.info('Running ECTyper')
-        ec_cmd = 'ectyper  -i {input_folder} -o {output_folder}'.format(input_folder=self.assembly_path,
-                                                                        output_folder=self.report_path)
+        ec_cmd = 'ectyper  -c {threads} -i {input_folder} -o {output_folder}'\
+            .format(threads=self.threads,
+                    input_folder=self.assembly_path,
+                    output_folder=self.report_path)
         if not os.path.isfile(self.report_output) and not os.path.isfile(self.report_final):
             out, err = run_subprocess(ec_cmd)
             write_to_logfile(out=out,

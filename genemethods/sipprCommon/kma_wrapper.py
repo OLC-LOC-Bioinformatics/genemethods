@@ -250,7 +250,9 @@ class KMA(object):
                     if percent_identity >= sample[self.analysistype].kmaresults[gene_allele]:
                         sample[self.analysistype].kmaresults[gene_allele] = percent_identity
                         sample[self.analysistype].kmadepthresults[gene_allele] = {percent_identity: depth}
-                genes_present.append(gene)
+                # Add the gene to the list of genes only for cgMLST analyses
+                if self.analysistype == 'cgmlst':
+                    genes_present.append(gene)
 
     def kma_report(self):
         """

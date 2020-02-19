@@ -134,58 +134,73 @@ class MLST(MLSTSippr):
         self.sequencetyper()
         self.new_alleles()
         self.mlstreporter()
-        quit()
 
     def new_alleles(self):
+        """
+        Parse samples to determine if new alleles need to be written to a file. Update the samples as required.
+        """
         for sample in self.runmetadata.samples:
+            # Only process the FASTA files if new alleles have been identified
             if sample[self.analysistype].new_alleles:
+                # Read in the KMA outputs with SeqIO
                 record_dict = SeqIO.to_dict(SeqIO.parse(sample[self.analysistype].kma_fasta_mem_mode, 'fasta'))
+                # Retrieve all the new alleles for the sample
                 for gene_allele in sample[self.analysistype].new_alleles:
+                    # Extract the gene sequence from the dictionary
                     gene_sequence = str(record_dict[gene_allele].seq).upper()
+                    # Split the string of gene_allele on underscores
                     split_name = gene_allele.split('_')
+                    # Remove the allele from the list (this allows genes with underscores in the name to not be lost)
                     del split_name[-1]
+                    # Recreate the gene name by joining the remaining items in the list with underscores
                     gene = '_'.join(split_name)
+                    # Ensure that there are no gaps or 'N's in the allele sequence
                     if set(gene_sequence) == {"A", "T", "C", "G"}:
-
+                        # Create a hash of the allele sequence to be used as the allele identifier. This way, if the
+                        # allele is found multiple times, it will always produce the same name
+                        # Uses logic from https://bitbucket.org/genomicepidemiology/cgmlstfinder/src/master/cgMLST.py
                         hash_str = hashlib.md5(gene_sequence.encode('utf-8')).hexdigest()
-                        print(sample.name, gene_allele, hash_str)
+                        # Write the new allele to file
                         self.write_new_alleles(sample=sample,
                                                hash_str=hash_str,
+                                               gene=gene,
                                                gene_seq=gene_sequence)
+                        # Update the GenObject with the new allele information
                         for seqtype in self.resultprofile[sample.name]:
-                            # for allele, percent_id in self.resultprofile[sample.name][seqtype][sample[self.analysistype].matchestosequencetype][gene].items():
-                            # print(seqtype, gene, allele, percent_id, sample[self.analysistype].targetpath)
-                            # print(self.resultprofile[sample.name][seqtype][sample[self.analysistype].matchestosequencetype][gene])
-
-                            # self.resultprofile[sample.name][seqtype] += 1
-                            # sample[self.analysistype].matchestosequencetype += 1
                             self.resultprofile[sample.name][seqtype][
                                 sample[self.analysistype].matchestosequencetype][gene] = {hash_str: 100.00}
 
-                    else:
-                        print('Illegal character in {sn} {split} {gene} {bad}'.format(sn=sample.name,
-                                                                                      split=split_name,
-                                                                                      gene=gene_allele,
-                                                                                      bad=set(gene_sequence)))
-
-    def write_new_alleles(self, sample, hash_str, gene_seq):
-        print(hash_str, gene_seq, sample.general.closestrefseqgenus, sample[self.analysistype].targetpath)
-        print(self.reportpath)
+    def write_new_alleles(self, sample, hash_str, gene, gene_seq):
+        """
+        Write the new alleles to file in both the reports folder, as well as the target path
+        :param sample: Metadata object of the current sample
+        :param hash_str: hashlib-formatted string of the allele sequence to be used as part of the identifier
+        :param gene: Name of the gene with the novel allele
+        :param gene_seq: The sequence of the novel allele
+        """
+        # Set the name of the FASTA output files in both the report and target paths
         report_alleles = os.path.join(self.reportpath, 'new_cgmlst_alleles_{genus}.fasta'
                                       .format(genus=sample.general.closestrefseqgenus))
         db_alleles = os.path.join(sample[self.analysistype].targetpath, 'novel_alleles.fna')
+        # Create the SeqRecord of the novel allele. Use Seq to prep the allele sequence. Set the ID to be the gene name
+        # and the hash string
         record = SeqRecord(Seq(gene_seq),
-                           id=hash_str,
+                           id='{gene}_{hash_str}'.format(gene=gene,
+                                                         hash_str=hash_str),
                            description=str())
+        # Create and write the FASTA file in the report folder
         if not os.path.isfile(report_alleles):
             with open(report_alleles, 'w') as report_allele:
                 SeqIO.write(record, report_allele, 'fasta')
+        # If the report output file already exists, ensure that the novel allele isn't already present. If not, write
+        # the novel allele to file
         else:
             record_dict = SeqIO.to_dict(SeqIO.parse(report_alleles, 'fasta'))
             if record.id not in record_dict:
                 with open(report_alleles, 'a+') as report_allele:
                     SeqIO.write(record, report_allele, 'fasta')
-
+        # Same logic as with the report alleles: create and populate the FASTA file file if it doesn't exist, otherwise,
+        # ensure that the allele isn't already present in the file before writing
         if not os.path.isfile(db_alleles):
             with open(db_alleles, 'w') as db_allele:
                 SeqIO.write(record, db_allele, 'fasta')
@@ -194,5 +209,3 @@ class MLST(MLSTSippr):
             if record.id not in record_dict:
                 with open(db_alleles, 'a+') as db_allele:
                     SeqIO.write(record, db_allele, 'fasta')
-
-
