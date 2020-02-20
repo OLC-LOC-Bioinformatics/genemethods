@@ -134,7 +134,8 @@ class KMA(object):
         with progressbar(self.metadata) as bar:
             for sample in bar:
                 if sample.general.bestassemblyfile != 'NA':
-                    sample[self.analysistype].outputdir = os.path.join(sample.general.outputdirectory, self.analysistype)
+                    sample[self.analysistype].outputdir = os.path.join(sample.general.outputdirectory,
+                                                                       self.analysistype)
                     sample[self.analysistype].output_prefix = os.path.join(sample[self.analysistype].outputdir,
                                                                            '{sn}_{at}'
                                                                            .format(sn=sample.name,

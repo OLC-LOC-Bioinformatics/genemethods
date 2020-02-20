@@ -77,20 +77,6 @@ class Reporter(object):
                     data += 'new,'
             except AttributeError:
                 data += 'new,'
-
-            # cgMLST
-            # try:
-            #     if type(sample.cgmlst.sequencetype) is list:
-            #         if sample.cgmlst.sequencetype:
-            #             cgmlst_seq_type = ';'.join(sorted(sample.cgmlst.sequencetype)).rstrip(';') + ','
-            #         else:
-            #             cgmlst_seq_type = 'ND,'
-            #     else:
-            #         cgmlst_seq_type = GenObject.returnattr(sample.cgmlst, 'sequencetype')
-            #         # cgmlst_seq_type = cgmlst_seq_type if cgmlst_seq_type != 'ND,' else 'new,'
-            #     data += cgmlst_seq_type
-            # except AttributeError:
-            #     data += 'ND,'
             # MLST_Result
             try:
                 if sample.mlst.matches == 7:
@@ -467,6 +453,7 @@ class Reporter(object):
                 pass
 
     def run_quality_reporter(self):
+        logging.info('Creating run quality summary report')
         run_name = os.path.split(self.path)[-1]
         data = 'RunName,SequencingDate,Analyst,ClusterDensity,PercentOverQ30,NumberofClustersPF,' \
                'PercentReadsPhiX,ErrorRate, LengthForwardRead,LengthReverseRead,Flowcell,MachineName\n'
@@ -501,7 +488,99 @@ class Reporter(object):
         with open(os.path.join(self.reportpath, 'run_metrics_report.csv'), 'w') as run_report:
             run_report.write(data)
 
-    def __init__(self, inputobject, legacy=True):
+    def sample_quality_report(self):
+        logging.info('Creating sample quality summary report')
+        header = '{}\n'.format(','.join(self.quality_headers))
+        # Create a string to store all the results
+        data = str()
+        for sample in self.metadata:
+            # Add the value of the appropriate attribute to the results string
+            data += GenObject.returnattr(sample, 'name')
+            # SampleName
+            data += GenObject.returnattr(sample.run, 'SamplePlate')
+            # Genus
+            data += GenObject.returnattr(sample.general, 'closestrefseqgenus')
+            # SamplePurity
+            data += GenObject.returnattr(sample.confindr, 'num_contaminated_snvs')
+            # N50
+            n50 = GenObject.returnattr(sample.quast, 'N50',
+                                       number=True)
+            if n50 != '-,':
+                data += n50
+            else:
+                data += '0,'
+            # NumContigs
+            data += GenObject.returnattr(sample.quast, 'num_contigs',
+                                         number=True)
+            # TotalLength
+            data += GenObject.returnattr(sample.quast, 'Total_length',
+                                         number=True)
+            # MeanInsertSize
+            data += GenObject.returnattr(sample.quast, 'mean_insert',
+                                         number=True)
+            # InsertSizeSTD
+            data += GenObject.returnattr(sample.quast, 'std_insert',
+                                         number=True)
+            # AverageCoverageDepth
+            data += GenObject.returnattr(sample.qualimap, 'MeanCoveragedata',
+                                         number=True)
+            # CoverageDepthSTD
+            data += GenObject.returnattr(sample.qualimap, 'StdCoveragedata',
+                                         number=True)
+            # PercentGC
+            data += GenObject.returnattr(sample.quast, 'GC',
+                                         number=True)
+            # MASH_ReferenceGenome
+            data += GenObject.returnattr(sample.mash, 'closestrefseq')
+            # MASH_NumMatchingHashes
+            data += GenObject.returnattr(sample.mash, 'nummatches')
+            # rMLST_Result
+            try:
+                # If the number of matches to the closest reference profile is 53, return the profile number
+                if sample.rmlst.matches == 53:
+                    if type(sample.rmlst.sequencetype) is list:
+                        rmlst_seq_type = ';'.join(sorted(sample.rmlst.sequencetype)).rstrip(';') + ','
+                    else:
+                        rmlst_seq_type = GenObject.returnattr(sample.rmlst, 'sequencetype')
+                        rmlst_seq_type = rmlst_seq_type if rmlst_seq_type != 'ND,' else 'new,'
+                    data += rmlst_seq_type
+                else:
+                    # Otherwise the profile is set to new
+                    data += 'new,'
+            except AttributeError:
+                data += 'new,'
+            # TotalPredictedGenes
+            data += GenObject.returnattr(sample.prodigal, 'predictedgenestotal',
+                                         number=True)
+            # PredictedGenesOver3000bp
+            data += GenObject.returnattr(sample.prodigal, 'predictedgenesover3000bp',
+                                         number=True)
+            # PredictedGenesOver1000bp
+            data += GenObject.returnattr(sample.prodigal, 'predictedgenesover1000bp',
+                                         number=True)
+            # PredictedGenesOver500bp
+            data += GenObject.returnattr(sample.prodigal, 'predictedgenesover500bp',
+                                         number=True)
+            # PredictedGenesUnder500bp
+            data += GenObject.returnattr(sample.prodigal, 'predictedgenesunder500bp',
+                                         number=True)
+            # PipelineVersion
+            data += self.commit + ','
+            # AssemblyDate
+            data += datetime.now().strftime('%Y-%m-%d') + ','
+            # Name of the database used in the analyses
+            data += os.path.split(self.reffilepath)[-1] + ','
+            # Database download date
+            data += self.download_date
+            # Append a new line to the end of the results for this sample
+            data += '\n'
+        # Replace any NA values with ND
+        cleandata = data.replace('NA', 'ND')
+        with open(os.path.join(self.reportpath, 'preliminary_combinedMetadata.csv'), 'w') as metadatareport:
+            metadatareport.write(header)
+            metadatareport.write(cleandata)
+
+    def __init__(self, inputobject):
         self.metadata = inputobject.runmetadata.samples
         self.commit = inputobject.commit
         self.reportpath = inputobject.reportpath
@@ -509,7 +588,32 @@ class Reporter(object):
         self.path = inputobject.path
         self.reffilepath = inputobject.reffilepath
         # Define the headers to be used in the metadata report
-        # 'AssemblyQuality',
+        self.quality_headers = [
+            'SeqID',
+            'SampleName',
+            'Genus',
+            'ConfindrContamSNVs',
+            'N50',
+            'NumContigs',
+            'TotalLength',
+            'MeanInsertSize',
+            'InsertSizeSTD',
+            'AverageCoverageDepth',
+            'CoverageDepthSTD',
+            'PercentGC',
+            'MASH_ReferenceGenome',
+            'MASH_NumMatchingHashes',
+            'rMLST_Result',
+            'TotalPredictedGenes',
+            'PredictedGenesOver3000bp',
+            'PredictedGenesOver1000bp',
+            'PredictedGenesOver500bp',
+            'PredictedGenesUnder500bp',
+            'AssemblyDate',
+            'PipelineVersion',
+            'Database',
+            'DatabaseDownloadDate'
+        ]
         self.headers = [
             'SeqID',
             'SampleName',
@@ -623,9 +727,3 @@ class Reporter(object):
                 self.download_date = download_date.readline().rstrip()
         except FileNotFoundError:
             self.download_date = 'ND'
-        self.metadata_reporter()
-        self.run_quality_reporter()
-        if legacy:
-            self.legacy_reporter()
-        # Create a database to store all the metadata
-        self.clean_object()
