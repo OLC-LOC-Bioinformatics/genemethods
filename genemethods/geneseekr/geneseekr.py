@@ -787,6 +787,7 @@ class GeneSeekr(object):
                 data[sample.name] = dict()
                 for target in targets:
                     data[sample.name][target] = list()
+                    target_count[target] = 1
                     count = 0
                     # Ensure that there are results for this target
                     if target in sample[analysistype].blastresults:
@@ -808,11 +809,8 @@ class GeneSeekr(object):
                     else:
                         data[sample.name][target] += ',-' * len(values_of_interest)
                     # Determine if this strain had the greatest number of hits against this target
-                    try:
-                        # Set the target_count to the current count if it is higher
-                        if count > target_count[target]:
-                            target_count[target] = count
-                    except KeyError:
+                    # Set the target_count to the current count if it is higher
+                    if count > target_count[target]:
                         target_count[target] = count
             # Determine how many times the target must be present in the header
             for target, num_present in sorted(target_count.items()):
@@ -911,7 +909,7 @@ class GeneSeekr(object):
                 if sample[analysistype].blastresults != 'NA':
                     for target in sorted(sample[analysistype].targetnames):
                         # if target in align_set:
-                        num_present = target_count[target]
+                        num_present = target_count[target] if target_count[target] > 0 else 1
                         if align:
                             if program == 'blastn':
                                 # Add the appropriate headers
@@ -950,7 +948,7 @@ class GeneSeekr(object):
         for sample in metadata:
             # Initialise a list to store all the data for each strain
             data = [sample.name]
-            for target in sorted(sample[analysistype].targetnames):
+            for target in sorted(targets):
                 index = 0
                 for hit in sample[analysistype].blastlist:
                     # Append the sample name to the data list only if the script could find targets and contain
@@ -1012,6 +1010,9 @@ class GeneSeekr(object):
                     # If there are no blast results at all, add a '-'
                     else:
                         data.extend(['-'] * header_length)
+                # If there are no blast results for the gene '-'
+                if target not in [entry['subject_id'] for entry in sample[analysistype].blastlist]:
+                    data.extend(['-'] * header_length)
             # Increment the row and reset the column to zero in preparation of writing results
             row += 1
             col = 0
