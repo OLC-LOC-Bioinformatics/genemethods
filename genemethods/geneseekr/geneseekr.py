@@ -781,6 +781,7 @@ class GeneSeekr(object):
         # As a target can be present in the strain more than once, initialise a dictionary to store the maximum number
         # of times a target is present
         target_count = dict()
+        align_target_count = dict()
         with open(csv_output, 'w') as outfile:
             header += 'Strain'
             for sample in metadata:
@@ -788,6 +789,7 @@ class GeneSeekr(object):
                 for target in targets:
                     data[sample.name][target] = list()
                     target_count[target] = 1
+                    align_target_count[target] = 0
                     count = 0
                     # Ensure that there are results for this target
                     if target in sample[analysistype].blastresults:
@@ -812,6 +814,8 @@ class GeneSeekr(object):
                     # Set the target_count to the current count if it is higher
                     if count > target_count[target]:
                         target_count[target] = count
+                    if count > align_target_count[target]:
+                        align_target_count[target] = count
             # Determine how many times the target must be present in the header
             for target, num_present in sorted(target_count.items()):
                 # Add the comma-separated target name + header value to the string e.g.
@@ -908,7 +912,6 @@ class GeneSeekr(object):
             if sample[analysistype].targetnames != 'NA':
                 if sample[analysistype].blastresults != 'NA':
                     for target in sorted(sample[analysistype].targetnames):
-                        # if target in align_set:
                         num_present = target_count[target] if target_count[target] > 0 else 1
                         if align:
                             if program == 'blastn':
@@ -927,7 +930,7 @@ class GeneSeekr(object):
                                                               '{target}_aa_Alignment'.format(target=target),
                                                               '{target}_aa_SNP_location'.format(target=target),
                                                               ])
-                            header_length = 4
+                                header_length = 4
                         else:
                             headers.extend(num_present * ['{target}_percent_match'.format(target=target)])
                             header_length = 1
@@ -997,7 +1000,7 @@ class GeneSeekr(object):
                                 else:
                                     data.extend(header_length * ['-'])
                                 # Add padding to strains with lower number of hits to targets
-                                num_present = target_count[target]
+                                num_present = align_target_count[target]
                                 if target_presence[sample.name][target] < num_present:
                                     # Calculate the required number of '-' to add to the list
                                     diff = num_present - target_presence[sample.name][target]
@@ -1010,7 +1013,7 @@ class GeneSeekr(object):
                     # If there are no blast results at all, add a '-'
                     else:
                         data.extend(['-'] * header_length)
-                # If there are no blast results for the gene '-'
+                # If there are no blast results for the gene, add an appropriate number of '-'
                 if target not in [entry['subject_id'] for entry in sample[analysistype].blastlist]:
                     data.extend(['-'] * header_length)
             # Increment the row and reset the column to zero in preparation of writing results
