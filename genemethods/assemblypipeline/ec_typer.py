@@ -2,6 +2,7 @@
 from olctools.accessoryFunctions.accessoryFunctions import GenObject, run_subprocess, write_to_logfile
 import logging
 import shutil
+import csv
 import os
 __author__ = 'adamkoziol'
 
@@ -41,20 +42,20 @@ class ECTyper(object):
         """
         Parse the report, and populate a dictionary with the extracted values
         """
-        with open(self.report_final, 'r') as report:
-            next(report)
-            for line in report:
-                sample_name = line.split('\t')[0]
-                if line.split('\t')[1].rstrip() == 'No serotyping-specific genes found':
-                    self.nesteddictionary[sample_name] = {
-                        'o_type': 'ND',
-                        'h_type': 'ND'
-                    }
-                else:
-                    self.nesteddictionary[sample_name] = {
-                        'o_type': line.split('\t')[1].rstrip(),
-                        'h_type': line.split('\t')[2].rstrip()
-                    }
+        # Load the file into a dictionary using the csv library
+        csv_dict = csv.DictReader(open(self.report_final), delimiter='\t')
+        for line in csv_dict:
+            sample_name = line['Name']
+            if line['O-type'] == 'No serotyping-specific genes found':
+                self.nesteddictionary[sample_name] = {
+                    'o_type': 'ND',
+                    'h_type': 'ND'
+                }
+            else:
+                self.nesteddictionary[sample_name] = {
+                    'o_type': line['O-type'],
+                    'h_type': line['H-type']
+                }
 
     def populate_metadata(self):
         """
