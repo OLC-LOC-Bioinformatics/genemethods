@@ -155,6 +155,8 @@ class GeneSippr(object):
         logging.info('Performing sequence typing')
         for sample in self.runmetadata.samples:
             sample[self.analysistype].new_alleles = list()
+            if sample.name not in self.resultprofile:
+                self.resultprofile[sample.name] = dict()
             if sample.general.bestassemblyfile != 'NA':
                 if type(sample[self.analysistype].allelenames) == list:
                     # Initialise variables
@@ -297,9 +299,6 @@ class GeneSippr(object):
                         # If there are no matches, set :sortedmatches to zero
                         except IndexError:
                             sortedmatches = 0
-                        #
-                        if genome not in self.resultprofile:
-                            self.resultprofile[genome] = dict()
                         # Otherwise, the query profile matches the reference profile
                         if int(sortedmatches) == header:
                             # Iterate through best match
@@ -370,10 +369,7 @@ class GeneSippr(object):
                                             sample[self.analysistype].sequencetype.add(sequencetype)
                                         sample[self.analysistype].matchestosequencetype = matches
                         elif sortedmatches == 0:
-                            if 'NA' not in self.resultprofile[genome]:
-                                self.resultprofile[genome]['NA'] = dict()
-                            if sortedmatches not in self.resultprofile[genome]['NA']:
-                                self.resultprofile[genome]['NA'][sortedmatches] = dict()
+                            self.populate_na(genome=genome)
                             for gene in sample[self.analysistype].allelenames:
                                 if gene not in self.resultprofile[genome]['NA'][sortedmatches]:
                                     self.resultprofile[genome]['NA'][sortedmatches][gene] = dict()
@@ -384,18 +380,29 @@ class GeneSippr(object):
                             sample[self.analysistype].matchestosequencetype = 'NA'
                             sample[self.analysistype].mismatchestosequencetype = 'NA'
                         else:
+                            self.populate_na(genome=genome)
                             sample[self.analysistype].matchestosequencetype = 'NA'
                             sample[self.analysistype].mismatchestosequencetype = 'NA'
                             sample[self.analysistype].sequencetype = 'NA'
                 else:
+                    self.populate_na(genome=sample.name)
                     sample[self.analysistype].matchestosequencetype = 'NA'
                     sample[self.analysistype].mismatchestosequencetype = 'NA'
                     sample[self.analysistype].sequencetype = 'NA'
 
             else:
+                self.populate_na(genome=sample.name)
                 sample[self.analysistype].matchestosequencetype = 'NA'
                 sample[self.analysistype].mismatchestosequencetype = 'NA'
                 sample[self.analysistype].sequencetype = 'NA'
+
+    def populate_na(self, genome):
+        """
+        Populate the self.resultprofile dictionary with 'NA' values as required
+        :param genome: type STR: Name of current sample
+        """
+        if 'NA' not in self.resultprofile[genome]:
+            self.resultprofile[genome]['NA'] = {0: dict()}
 
     def mlstreporter(self):
         """ Parse the results into a report"""
