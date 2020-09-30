@@ -7,7 +7,6 @@ from Bio.Blast.Applications import NcbiblastnCommandline, NcbiblastxCommandline,
     NcbitblastnCommandline, NcbitblastxCommandline
 from Bio.Application import ApplicationError
 from Bio.SeqRecord import SeqRecord
-from Bio.Alphabet import IUPAC
 from Bio.Seq import Seq
 from Bio import SeqIO
 from click import progressbar
@@ -402,7 +401,7 @@ class GeneSeekr(object):
                             # Determine if the orientation of the sequence is reversed compared to the reference
                             if int(row['subject_end']) < int(row['subject_start']):
                                 # Create a sequence object using Biopython
-                                seq = Seq(row['query_sequence'], IUPAC.unambiguous_dna)
+                                seq = Seq(row['query_sequence'], annotations={"molecule_type": "DNA"})
                                 # Calculate the reverse complement of the sequence
                                 querysequence = str(seq.reverse_complement())
                             # If the sequence is not reversed, use the sequence as it is in the output
@@ -507,7 +506,7 @@ class GeneSeekr(object):
                             # Determine if the orientation of the sequence is reversed compared to the reference
                             if int(row['subject_end']) < int(row['subject_start']):
                                 # Create a sequence object using Biopython
-                                seq = Seq(row['query_sequence'], IUPAC.unambiguous_dna)
+                                seq = Seq(row['query_sequence'], annotations={"molecule_type": "DNA"})
                                 # Calculate the reverse complement of the sequence
                                 querysequence = str(seq.reverse_complement())
                             # If the sequence is not reversed, use the sequence as it is in the output
@@ -631,7 +630,7 @@ class GeneSeekr(object):
                             # by setting the query sequence to be the reverse complement
                             if int(row['subject_end']) < int(row['subject_start']):
                                 # Create a sequence object using Biopython
-                                seq = Seq(row['query_sequence'], IUPAC.unambiguous_dna)
+                                seq = Seq(row['query_sequence'], annotations={"molecule_type": "DNA"})
                                 # Calculate the reverse complement of the sequence
                                 querysequence = str(seq.reverse_complement())
                             # If the sequence is not reversed, use the sequence as it is in the output
@@ -1190,11 +1189,12 @@ class GeneSeekr(object):
                                              ])
                         else:
                             if program == 'blastn':
-                                record = SeqRecord(Seq(result['query_sequence'], IUPAC.ambiguous_dna),
+                                record = SeqRecord(Seq(result['query_sequence'], annotations={"molecule_type": "DNA"}),
                                                    id='{}_{}'.format(sample.name, name),
                                                    description='')
                             else:
-                                record = SeqRecord(Seq(result['query_sequence'], IUPAC.protein),
+                                record = SeqRecord(Seq(result['query_sequence'],
+                                                       annotations={"molecule_type": "protein"}),
                                                    id='{}_{}'.format(sample.name, name),
                                                    description='')
                             data.append(record.format('fasta'))
@@ -1562,7 +1562,7 @@ class GeneSeekr(object):
         # Only BLASTn analyses require additional effort to find the protein sequence
         if program == 'blastn':
             # Convert the extracted, properly-oriented DNA sequence to a Seq object
-            sample[analysistype].dnaseq[target].append(Seq(hit['query_sequence'], IUPAC.ambiguous_dna))
+            sample[analysistype].dnaseq[target].append(Seq(hit['query_sequence'], annotations={"molecule_type": "DNA"}))
             # Create the BLAST-like interleaved outputs with the query and subject sequences
             sample[analysistype].ntalign[target].append(self.interleaveblastresults(query=hit['query_sequence'],
                                                                                     subject=hit['subject_sequence']))
@@ -1603,7 +1603,8 @@ class GeneSeekr(object):
                                                index=index))
             # Write the appropriately-converted subject sequence to the database file
             with open(tmp_subject, 'w') as tmp_db:
-                SeqIO.write(SeqRecord(Seq(hit['subject_sequence'].replace('-', ''), IUPAC.ambiguous_dna),
+                SeqIO.write(SeqRecord(Seq(hit['subject_sequence'].replace('-', ''),
+                                          annotations={"molecule_type": "DNA"}),
                                       id='{}_{}'.format(sample.name, target),
                                       description=''), tmp_db, 'fasta')
             # Create a BLAST database from this file
@@ -1629,7 +1630,8 @@ class GeneSeekr(object):
                 if results['hit_frame'] == 1:
                     # Populate the .protseq attribute with the Seq-converted amino acid sequence extracted from the
                     # report
-                    sample[analysistype].protseq[target].append(Seq(results['qseq'].upper(), IUPAC.protein))
+                    sample[analysistype].protseq[target].append(Seq(results['qseq'].upper(),
+                                                                    annotations={"molecule_type": "protein"}))
                     # Grab the subject sequence
                     ref_prot = results['hseq']
                     # Only the first result is required
@@ -1637,7 +1639,8 @@ class GeneSeekr(object):
             # If there were no results with the hit_frame equal to 1, get the best result from the analysis
             if not ref_prot:
                 for results in data:
-                    sample[analysistype].protseq[target].append(Seq(results['qseq'].upper(), IUPAC.protein))
+                    sample[analysistype].protseq[target].append(Seq(results['qseq'].upper(),
+                                                                    annotations={"molecule_type": "protein"}))
                     ref_prot = results['hseq']
                     break
             # Clear out the tmp directory
@@ -1648,7 +1651,8 @@ class GeneSeekr(object):
         else:
             # Non-blastn analyses will already have the outputs as amino acid sequences. Populate variables as required
             ref_prot = hit['subject_sequence']
-            sample[analysistype].protseq[target].append(Seq(hit['query_sequence'], IUPAC.protein))
+            sample[analysistype].protseq[target].append(Seq(hit['query_sequence'],
+                                                            annotations={"molecule_type": "protein"}))
         # Create the BLAST-like alignment of the amino acid query and subject sequences
         sample[analysistype].aaalign[target]\
             .append(self.interleaveblastresults(query=sample[analysistype].protseq[target][index],
@@ -1760,7 +1764,7 @@ class GeneSeekr(object):
                                         else:
                                             # The .targetsequence attribute will be sufficient
                                             fasta = Seq(sample[analysistype].targetsequence[target][index],
-                                                        IUPAC.protein)
+                                                        annotations={"molecule_type": "protein"})
                                     except (KeyError, IndexError):
                                         # Align the protein (and nucleotide) sequences to the reference
                                         sample = self.alignprotein(sample=sample,
@@ -1774,7 +1778,7 @@ class GeneSeekr(object):
                                                 fasta = sample[analysistype].dnaseq[target][index]
                                             else:
                                                 fasta = Seq(sample[analysistype].targetsequence[target][index],
-                                                            IUPAC.protein)
+                                                            annotations={"molecule_type": "protein"})
                                         except IndexError:
                                             fasta = str()
                                     # Create the SeqRecord of the FASTA sequence
