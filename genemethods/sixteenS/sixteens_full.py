@@ -5,7 +5,6 @@ from genemethods.sipprCommon.objectprep import Objectprep
 from genemethods.sipprCommon.sippingmethods import Sippr
 from Bio.Blast.Applications import NcbiblastnCommandline
 from Bio.SeqRecord import SeqRecord
-from Bio.Alphabet import IUPAC
 from Bio.Seq import Seq
 import Bio.Application
 from Bio import SeqIO
@@ -421,7 +420,7 @@ class SixteenS(object):
                                                                                .avgdepth[name])
                                 # Create a FASTA-formatted sequence output of the 16S sequence
                                 record = SeqRecord(Seq(sample[self.analysistype].sequences[name],
-                                                       IUPAC.unambiguous_dna),
+                                                       annotations={"molecule_type": "DNA"}),
                                                    id='{sn}_16S'.format(sn=sample.name),
                                                    description='')
                                 SeqIO.write(record, sequences, 'fasta')

@@ -39,7 +39,7 @@ class SeqSero(object):
                 if genus == 'Salmonella':
                     # Make the system call - use the default allele micro-assembly workflow
                     sample[self.analysistype].seqsero_cmd = 'SeqSero2_package.py -p {cpus} -t {numreads} -i {fastq} ' \
-                                                            '-d {outdir}'\
+                                                            '-k -d {outdir}'\
                         .format(cpus=self.cpus,
                                 numreads=len(sample.general.trimmedcorrectedfastqfiles),
                                 fastq=' '.join(sample.general.trimmedcorrectedfastqfiles),

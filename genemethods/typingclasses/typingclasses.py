@@ -10,7 +10,6 @@ from genemethods.genesippr.genesippr import GeneSippr
 from genemethods.serosippr.serosippr import SeroSippr
 from genemethods.sipprCommon.kma_wrapper import KMA
 from genemethods.geneseekr.blast import BLAST
-from Bio.Alphabet import IUPAC
 from Bio.Seq import Seq
 from Bio import SeqIO
 from Bio.SeqRecord import SeqRecord
@@ -770,7 +769,7 @@ class ResFinder(GeneSeekr):
                                          sample[self.analysistype].ntindex[name]
                                          ])
                         else:
-                            record = SeqRecord(Seq(result['subject_sequence'], IUPAC.unambiguous_dna),
+                            record = SeqRecord(Seq(result['subject_sequence'], annotations={"molecule_type": "DNA"}),
                                                id='{}_{}'.format(sample.name, name),
                                                description='')
                             data.append(record.format('fasta'))

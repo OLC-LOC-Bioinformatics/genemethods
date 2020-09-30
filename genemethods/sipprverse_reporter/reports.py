@@ -2,7 +2,6 @@
 from olctools.accessoryFunctions.accessoryFunctions import make_path, MetadataObject
 from Bio.Sequencing.Applications import SamtoolsFaidxCommandline
 from Bio.SeqRecord import SeqRecord
-from Bio.Alphabet import IUPAC
 from Bio.Seq import Seq
 from Bio import SeqIO
 from io import StringIO
@@ -315,7 +314,7 @@ class Reports(object):
                                                                sample[analysistype].avgdepth[name])
                                 # Create a FASTA-formatted sequence output of the 16S sequence
                                 record = SeqRecord(Seq(sample[analysistype].sequences[name],
-                                                       IUPAC.unambiguous_dna),
+                                                       annotations={"molecule_type": "DNA"}),
                                                    id='{}_{}'.format(sample.name, '16S'),
                                                    description='')
                                 SeqIO.write(record, sequences, 'fasta')

@@ -310,8 +310,7 @@ class MLST(object):
         orientation = False if int(row['subject_start']) < int(row['subject_end']) else True
         if orientation:
             from Bio.Seq import Seq
-            from Bio.Alphabet import IUPAC
-            seq = Seq(row['query_sequence'], IUPAC.unambiguous_dna)
+            seq = Seq(row['query_sequence'], annotations={"molecule_type": "DNA"})
             seq = str(seq.reverse_complement())
         self.plusdict[sample.name][gene][allelenumber][percentidentity] = bitscore
         sample[self.analysistype].closealleles[gene] = allelenumber
@@ -342,7 +341,6 @@ class MLST(object):
         :param targetallele: closest allele in database
         """
         from Bio.Seq import Seq
-        from Bio.Alphabet import IUPAC
         from Bio.SeqRecord import SeqRecord
         # As there is some discrepancy with the capitalisation of terms, make sure it is consistent
         analysistype = 'rMLST' if self.analysistype.lower() == 'rmlst' else 'MLST'
@@ -364,7 +362,7 @@ class MLST(object):
             # Record the allele number + 1; following the last record, this number will represent the next allele number
             nextallele = int(record.id.split('_')[-1]) + 1
         # Translate the nucleotide sequence to determine if there are any internal stop codons
-        dnaseq = Seq(sample[self.analysistype].queryseq[gene], IUPAC.unambiguous_dna)
+        dnaseq = Seq(sample[self.analysistype].queryseq[gene], annotations={"molecule_type": "DNA"})
         protseq = str(dnaseq.translate())
         # There should be only one stop codon per sequence. In sequences with more than one stop codon, this additional
         # stop codon must be internal
@@ -411,7 +409,6 @@ class MLST(object):
         from Bio.Blast import NCBIXML
         from Bio.SeqRecord import SeqRecord
         from Bio.Seq import Seq
-        from Bio.Alphabet import generic_dna
         # Find the name of the allele file based on whether the gene name is found in the file name
         genefile = [x for x in sample[self.analysistype].alleles if gene in x][0]
         # Remove the extension of the gene file for use in makeblastdb and blastn
@@ -514,7 +511,7 @@ class MLST(object):
                                             pass
                                         # Puts the HSP in the correct order -  hits to the negative strand will be
                                         # reversed compared to what we're looking for
-                                        allelesequence = Seq(hsp.query, generic_dna)
+                                        allelesequence = Seq(hsp.query, annotations={"molecule_type": "DNA"})
                                         if hsp.sbjct_start < hsp.sbjct_end:
                                             end = hsp.sbjct_end
                                         else:
