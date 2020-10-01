@@ -769,7 +769,7 @@ class ResFinder(GeneSeekr):
                                          sample[self.analysistype].ntindex[name]
                                          ])
                         else:
-                            record = SeqRecord(Seq(result['subject_sequence'], annotations={"molecule_type": "DNA"}),
+                            record = SeqRecord(Seq(result['subject_sequence']),
                                                id='{}_{}'.format(sample.name, name),
                                                description='')
                             data.append(record.format('fasta'))

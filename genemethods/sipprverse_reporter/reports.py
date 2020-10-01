@@ -313,8 +313,7 @@ class Reports(object):
                                 data += '{},{},{},{}\n'.format(name, identity, sample[analysistype].genus,
                                                                sample[analysistype].avgdepth[name])
                                 # Create a FASTA-formatted sequence output of the 16S sequence
-                                record = SeqRecord(Seq(sample[analysistype].sequences[name],
-                                                       annotations={"molecule_type": "DNA"}),
+                                record = SeqRecord(Seq(sample[analysistype].sequences[name]),
                                                    id='{}_{}'.format(sample.name, '16S'),
                                                    description='')
                                 SeqIO.write(record, sequences, 'fasta')

@@ -349,8 +349,8 @@ class BLAST(object):
                            'evalue', 'bit_score', 'subject_length', 'alignment_length',
                            'query_start', 'query_end', 'subject_start', 'subject_end',
                            'percent_match', 'query_sequence', 'subject_sequence']
-        self.outfmt = "'6 qseqid sseqid positive mismatch gaps evalue bitscore slen length qstart qend sstart send " \
-                      "qseq sseq'"
+        self.outfmt = "6 qseqid sseqid positive mismatch gaps evalue bitscore slen length qstart qend sstart " \
+                      "send qseq sseq"
         self.targetfolders = set()
         self.targetfiles = list()
         self.records = dict()

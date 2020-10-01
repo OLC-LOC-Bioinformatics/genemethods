@@ -136,7 +136,7 @@ class GeneSeekr_tblastx(GeneSeekr):
                 # Determine if the orientation of the sequence is reversed compared to the reference
                 if int(row['subject_end']) < int(row['subject_start']):
                     # Create a sequence object using Biopython
-                    seq = Seq(row['query_sequence'], annotations={"molecule_type": "DNA"})
+                    seq = Seq(row['query_sequence'])
                     # Calculate the reverse complement of the sequence
                     querysequence = str(seq.reverse_complement())
                 # If the sequence is not reversed, use the sequence as it is in the output
@@ -235,7 +235,7 @@ class GeneSeekr_tblastx(GeneSeekr):
                 # by setting the query sequence to be the reverse complement
                 if int(row['subject_end']) < int(row['subject_start']):
                     # Create a sequence object using Biopython
-                    seq = Seq(row['query_sequence'], annotations={"molecule_type": "DNA"})
+                    seq = Seq(row['query_sequence'])
                     # Calculate the reverse complement of the sequence
                     querysequence = str(seq.reverse_complement())
                 # If the sequence is not reversed, use the sequence as it is in the output
@@ -374,7 +374,7 @@ class GeneSeekr_tblastx(GeneSeekr):
         seq = sample[self.analysistype].targetsequence[target] if remainder == 0 \
             else sample[self.analysistype].targetsequence[target][:remainder]
         # Set the DNA and protein sequences of the target in the sample
-        sample[self.analysistype].dnaseq[target] = Seq(seq, annotations={"molecule_type": "DNA"})
+        sample[self.analysistype].dnaseq[target] = Seq(seq)
         # Translate the nucleotide sequence
         sample[self.analysistype].protseq[target] = str(sample[self.analysistype].dnaseq[target].translate())
         for targetfile in self.targetfiles:
@@ -383,7 +383,7 @@ class GeneSeekr_tblastx(GeneSeekr):
             refseq = str(self.records[targetfile][target].seq) if refremainder % 3 == 0 \
                 else str(self.records[targetfile][target].seq)[:refremainder]
             # Translate the nucleotide sequence of the reference sequence
-            refdna = Seq(refseq, annotations={"molecule_type": "DNA"})
+            refdna = Seq(refseq)
             refprot = str(refdna.translate())
             # Use pairwise2 to perform a local alignment with the following parameters:
             # x     No match parameters. Identical characters have score of 1, otherwise 0.
@@ -513,7 +513,7 @@ class GeneSeekr_tblastx(GeneSeekr):
                                          sample[self.analysistype].ntindex[name]
                                          ])
                         else:
-                            record = SeqRecord(Seq(result['query_sequence'], annotations={"molecule_type": "DNA"}),
+                            record = SeqRecord(Seq(result['query_sequence']),
                                                id='{}_{}'.format(sample.name, name),
                                                description='')
                             data.append(record.format('fasta'))

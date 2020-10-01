@@ -419,8 +419,7 @@ class SixteenS(object):
                                                                                depth=sample[self.analysistype]
                                                                                .avgdepth[name])
                                 # Create a FASTA-formatted sequence output of the 16S sequence
-                                record = SeqRecord(Seq(sample[self.analysistype].sequences[name],
-                                                       annotations={"molecule_type": "DNA"}),
+                                record = SeqRecord(Seq(sample[self.analysistype].sequences[name]),
                                                    id='{sn}_16S'.format(sn=sample.name),
                                                    description='')
                                 SeqIO.write(record, sequences, 'fasta')

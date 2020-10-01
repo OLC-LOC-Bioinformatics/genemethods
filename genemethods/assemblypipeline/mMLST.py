@@ -310,7 +310,7 @@ class MLST(object):
         orientation = False if int(row['subject_start']) < int(row['subject_end']) else True
         if orientation:
             from Bio.Seq import Seq
-            seq = Seq(row['query_sequence'], annotations={"molecule_type": "DNA"})
+            seq = Seq(row['query_sequence'])
             seq = str(seq.reverse_complement())
         self.plusdict[sample.name][gene][allelenumber][percentidentity] = bitscore
         sample[self.analysistype].closealleles[gene] = allelenumber
@@ -362,7 +362,7 @@ class MLST(object):
             # Record the allele number + 1; following the last record, this number will represent the next allele number
             nextallele = int(record.id.split('_')[-1]) + 1
         # Translate the nucleotide sequence to determine if there are any internal stop codons
-        dnaseq = Seq(sample[self.analysistype].queryseq[gene], annotations={"molecule_type": "DNA"})
+        dnaseq = Seq(sample[self.analysistype].queryseq[gene])
         protseq = str(dnaseq.translate())
         # There should be only one stop codon per sequence. In sequences with more than one stop codon, this additional
         # stop codon must be internal
@@ -511,7 +511,7 @@ class MLST(object):
                                             pass
                                         # Puts the HSP in the correct order -  hits to the negative strand will be
                                         # reversed compared to what we're looking for
-                                        allelesequence = Seq(hsp.query, annotations={"molecule_type": "DNA"})
+                                        allelesequence = Seq(hsp.query)
                                         if hsp.sbjct_start < hsp.sbjct_end:
                                             end = hsp.sbjct_end
                                         else:
