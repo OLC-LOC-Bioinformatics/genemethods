@@ -296,8 +296,8 @@ class SixteenS(object):
                                                    db=os.path.splitext(sample[self.analysistype].baitfile)[0],
                                                    max_target_seqs=1,
                                                    num_threads=self.threads,
-                                                   outfmt="'6 qseqid sseqid positive mismatch gaps evalue "
-                                                          "bitscore slen length qstart qend qseq sstart send sseq'",
+                                                   outfmt="6 qseqid sseqid positive mismatch gaps evalue bitscore "
+                                                          "slen length qstart qend qseq sstart send sseq",
                                                    out=sample[self.analysistype].blastreport)
                     # Add a string of the command to the metadata object
                     sample[self.analysistype].blastcall = str(blastn)
