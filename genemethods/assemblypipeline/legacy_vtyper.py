@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 from olctools.accessoryFunctions.accessoryFunctions import GenObject, make_path, MetadataObject, run_subprocess, \
     SetupLogging
-from Bio import SeqIO, Seq
+from Bio import Data, SeqIO, Seq
+from Bio.Data import IUPACData
 from argparse import ArgumentParser
 from itertools import product
 from threading import Thread
@@ -20,9 +21,9 @@ __author__ = 'adamkoziol'
 class Vtyper(object):
 
     def vtyper(self):
-        if not os.path.isfile(self.formattedprimers):
-            self.epcr_primers(primerfile=self.primerfile)
-            self.epcr_primer_file(formattedprimers=self.formattedprimers)
+        # if not os.path.isfile(self.formattedprimers):
+        self.epcr_primers(primerfile=self.primerfile)
+        self.epcr_primer_file(formattedprimers=self.formattedprimers)
         self.epcr_threads(formattedprimers=self.formattedprimers)
         self.epcr_parse()
         self.epcr_report()
@@ -32,11 +33,12 @@ class Vtyper(object):
         Read in the primer file, and create a properly formatted output file that takes any degenerate bases
         into account
         """
+        primerlist = list()
         logging.info('Populating primer dictionaries')
         for record in SeqIO.parse(primerfile, 'fasta'):
             # from https://stackoverflow.com/a/27552377 - find any degenerate bases in the primer sequence, and
             # create all possibilities as a list
-            degenerates = Seq.IUPAC.IUPACData.ambiguous_dna_values
+            degenerates = Data.IUPACData.ambiguous_dna_values
             primerlist = list(map(''.join, product(*map(degenerates.get, str(record.seq).upper()))))
             # As the record.id is being updated in the loop below, set the name of the primer here so that will
             # be able to be recalled when setting the new record.ids
@@ -61,6 +63,10 @@ class Vtyper(object):
                     except KeyError:
                         self.reverse_dict[basename] = list()
                         self.reverse_dict[basename].append(primer)
+        print()
+        print(self.formattedprimers)
+        print(self.primerfile)
+        print(primerlist)
 
     def epcr_primer_file(self, formattedprimers):
         """
