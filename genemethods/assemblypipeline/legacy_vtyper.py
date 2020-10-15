@@ -33,7 +33,6 @@ class Vtyper(object):
         Read in the primer file, and create a properly formatted output file that takes any degenerate bases
         into account
         """
-        primerlist = list()
         logging.info('Populating primer dictionaries')
         for record in SeqIO.parse(primerfile, 'fasta'):
             # from https://stackoverflow.com/a/27552377 - find any degenerate bases in the primer sequence, and
@@ -63,10 +62,6 @@ class Vtyper(object):
                     except KeyError:
                         self.reverse_dict[basename] = list()
                         self.reverse_dict[basename].append(primer)
-        print()
-        print(self.formattedprimers)
-        print(self.primerfile)
-        print(primerlist)
 
     def epcr_primer_file(self, formattedprimers):
         """
