@@ -111,8 +111,9 @@ class MobRecon(object):
         """
         logging.info('Creating MOB-recon summary report')
         with open(os.path.join(self.reportpath, 'mob_recon_summary.csv'), 'w') as summary:
-            data = 'Strain,Location,Contig,Incompatibility,IncompatibilityAccession,RelaxaseType,' \
-                   'MashNearestNeighbor,MashNeighborDistance\n'
+            data = 'Strain,ClusterID,Contig,Size,PercentGC,Incompatibility,IncompatibilityAccession,RelaxaseType,' \
+                   'MatingPairFormationType,OriginOfTransferType,PredictedMobility,MashNearestNeighbor,' \
+                   'MashNeighborDistance\n'
             for sample in self.metadata:
                 # Initialise a dictionary to store results for the COWBAT final report
                 sample[self.analysistype].pipelineresults = dict()
@@ -123,24 +124,29 @@ class MobRecon(object):
                     except IndexError:
                         contig = results['contig_id']
                     # Only process results if they are not calculated to be chromosomal
-                    if results['cluster_id'] != 'chromosome':
+                    if results['molecule_type'] != 'chromosome':
                         data += ','.join(str(result).replace(',', ';') if str(result) != 'nan' else 'ND'
                                          for result in [
                                              sample.name,
-                                             results['cluster_id'],
+                                             results['primary_cluster_id'],
                                              contig,
-                                             results['rep_type'],
-                                             results['rep_type_accession'],
-                                             results['relaxase_type'],
+                                             results['size'],
+                                             results['gc'],
+                                             results['rep_type(s)'],
+                                             results['rep_type_accession(s)'],
+                                             results['relaxase_type(s)'],
+                                             results['mpf_type'],
+                                             results['orit_type(s)'],
+                                             results['predicted_mobility'],
                                              results['mash_nearest_neighbor'],
                                              results['mash_neighbor_distance']]
                                          )
                         data += '\n'
                         # Add the calculated incompatibility to the pipeline results for use in the final COWBAT report
-                        sample[self.analysistype].pipelineresults[results['cluster_id']] =  \
+                        sample[self.analysistype].pipelineresults[results['primary_cluster_id']] =  \
                             ';'.join(str(result).replace(',', ';') if str(result) != 'nan' else 'ND'
                                      for result in [
-                                         results['rep_type']]
+                                         results['rep_type(s)']]
                                      )
             summary.write(data)
 
