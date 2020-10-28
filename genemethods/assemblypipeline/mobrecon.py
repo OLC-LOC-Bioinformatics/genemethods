@@ -260,7 +260,8 @@ class MobRecon(object):
                                 # cutoff
                                 try:
                                     if float(result_dict['PercentIdentity']) >= self.cutoff:
-                                        # As there was at least a single gene passing the threshold, set the boolean to True
+                                        # As there was at least a single gene passing the threshold, set the boolean
+                                        # to True
                                         result_bool = True
                                         data += '{sn},'.format(sn=sample.name)
                                         data += '{gene},{pi},{contig},{cid},{inc}\n'\
@@ -375,7 +376,8 @@ if __name__ == '__main__':
                     for i, header in enumerate(headers):
                         # Add the raw BLAST outputs (e.g. sample_id, positives, alignment_length, etc.) to the
                         # dictionary (gene name: header: result)
-                        sample.geneseekr_results.sampledata[result[1].lstrip('gb|').rstrip('|')].update({headers[i]: result[i]})
+                        sample.geneseekr_results.sampledata[result[1].lstrip('gb|').rstrip('|')].update({headers[i]:
+                                                                                                             result[i]})
         return metadata
 
 
