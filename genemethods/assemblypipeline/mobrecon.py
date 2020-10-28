@@ -204,7 +204,7 @@ class MobRecon(object):
                                                           ]
                                                          )
                                             )
-                    except KeyError as e:
+                    except KeyError:
                         pass
             amr.write(data)
 
