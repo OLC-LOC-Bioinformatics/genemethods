@@ -118,11 +118,8 @@ class MobRecon(object):
                 # Initialise a dictionary to store results for the COWBAT final report
                 sample[self.analysistype].pipelineresults = dict()
                 for primarykey, results in sample[self.analysistype].report_dict.items():
-                    # MOB suite 2.0.0 has different output?
-                    try:
-                        contig = results['contig_id'].split('|')[1]
-                    except IndexError:
-                        contig = results['contig_id']
+                    # Extract the name of the contig
+                    contig = results['contig_id']
                     # Only process results if they are not calculated to be chromosomal
                     if results['molecule_type'] != 'chromosome':
                         data += ','.join(str(result).replace(',', ';') if str(result) != 'nan' else 'ND'
@@ -164,10 +161,11 @@ class MobRecon(object):
                 inc_dict = dict()
                 for primarykey, results in sample[self.analysistype].report_dict.items():
                     try:
-                        inc = results['cluster_id']
+                        inc = results['primary_cluster_id']
                         # Convert the rep_type field (predicted incompatibilities) into a more a consistent
                         # format - pandas will call empty fields 'nan', which is a float
-                        rep = str(results['rep_type']).replace(',', ';') if str(results['rep_type']) != 'nan' else 'ND'
+                        rep = str(results['rep_type(s)']).replace(',', ';') if str(results['rep_type(s)']) != 'nan' \
+                            else 'ND'
                         # Add the incompatibility to the set
                         try:
                             inc_dict[inc].add(rep)
@@ -176,38 +174,37 @@ class MobRecon(object):
                             inc_dict[inc].add(rep)
                     except KeyError:
                         pass
-                #
+                # Iterate through the MOB suite results
                 for primarykey, results in sample[self.analysistype].report_dict.items():
                     try:
-                        # MOB suite 2.0.0 has different output?
-                        try:
-                            contig = results['contig_id'].split('|')[1]
-                        except IndexError:
-                            contig = results['contig_id']
+                        # Extract the name of the contig
+                        contig = results['contig_id']
                         # Unicycler gives contigs names such as: 3_length=187116_depth=1.60x_circular=true - test
                         # to see if the contig name looks unicycler-like, and set the name appropriately (in this
                         # case, it would be 3)
-                        if contig.split('_')[1].startswith('length'):
-                            contig = contig.split('_')[0]
+                        try:
+                            if contig.split('_')[1].startswith('length'):
+                                contig = contig.split('_')[0]
+                        except IndexError:
+                            pass
                         # Use the list of results from the resfinder analyses
                         for amr_result in sample.resfinder_assembled.sampledata:
                             # Ensure that the current contig is the same as the one in the resfinder results. Ensure
                             # that the slice of the amr result is treated as a string. Unicycler contigs seem to be
                             # treated as integers
-                            if contig == str(amr_result[5]):
-                                # Set up the output string
-                                data += '{sn},'.format(sn=sample.name)
+                            if str(amr_result[5]) == contig or str(amr_result[5].split('_')[0]) == contig:
                                 # Add the resistance and MOB recon outputs for the strain
-                                data += '{amr},{mob}\n'\
-                                    .format(amr=','.join(str(res) if str(res) != 'nan' else 'ND' for res in
+                                data += '{sn},{amr},{mob}\n'\
+                                    .format(sn=sample.name,
+                                            amr=','.join(str(res) if str(res) != 'nan' else 'ND' for res in
                                                          amr_result[0:4]),
                                             mob=','.join(str(res) if str(res) != 'nan' else 'ND' for res in
-                                                         [contig, results['cluster_id'],
-                                                          ';'.join(sorted(inc_dict[str(results['cluster_id'])]))
+                                                         [contig, results['primary_cluster_id'],
+                                                          ';'.join(sorted(inc_dict[str(results['primary_cluster_id'])]))
                                                           ]
                                                          )
                                             )
-                    except KeyError:
+                    except KeyError as e:
                         pass
             amr.write(data)
 
