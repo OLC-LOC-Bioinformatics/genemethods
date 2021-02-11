@@ -168,16 +168,33 @@ class PrimerFinder(object):
         Read in the primer file, and create a properly formatted output file that takes any degenerate bases
         into account
         """
+        # Dictionary of degenerate IUPAC codes
+        iupac = {
+            'R': ['A', 'G'],
+            'Y': ['C', 'T'],
+            'S': ['C', 'G'],
+            'W': ['A', 'T'],
+            'K': ['G', 'T'],
+            'M': ['A', 'C'],
+            'B': ['C', 'G', 'T'],
+            'D': ['A', 'G', 'T'],
+            'H': ['A', 'C', 'T'],
+            'V': ['A', 'C', 'G'],
+            'N': ['A', 'C', 'G', 'T'],
+            'A': ['A'],
+            'C': ['C'],
+            'G': ['G'],
+            'T': ['T']
+        }
         with open(self.formattedprimers, 'w') as formatted:
             for record in SeqIO.parse(self.primerfile, 'fasta'):
                 # from https://stackoverflow.com/a/27552377 - find any degenerate bases in the primer sequence, and
                 # create all possibilities as a list
-                degenerates = Seq.IUPAC.IUPACData.ambiguous_dna_values
                 try:
-                    primerlist = list(map("".join, product(*map(degenerates.get, str(record.seq)))))
+                    primerlist = [''.join(base) for base in product(*[iupac[seq] for seq in str(record.seq).upper()])]
                 except TypeError:
                     print("Invalid Primer Sequence: {seq}".format(seq=str(record.seq)))
-                    sys.exit()
+                    quit()
                 # As the record.id is being updated in the loop below, set the name of the primer here so that will
                 # be able to be recalled when setting the new record.ids
                 primername = record.id
