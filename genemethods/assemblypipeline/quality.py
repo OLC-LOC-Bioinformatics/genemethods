@@ -310,7 +310,7 @@ class Quality(object):
                                 err = str()
                         else:
                             if not os.path.isfile(cleanforward):
-                                    out, \
+                                out, \
                                         err, \
                                         bbdukcall = bbtools.bbduk_trim(forward_in=fastqfiles[0],
                                                                        forward_out=cleanforward,

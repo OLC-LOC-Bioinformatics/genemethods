@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="genemethods",
-    version="0.0.0.43",
+    version="0.0.0.44",
     packages=find_packages(),
     include_package_data=True,
     author="Adam Koziol",

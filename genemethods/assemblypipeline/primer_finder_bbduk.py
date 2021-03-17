@@ -18,10 +18,57 @@ import logging
 import shutil
 import time
 import os
-import sys
 
 
 __author__ = 'adamkoziol, duceppemo'
+
+
+def ampliconfile(sample, analysistype, contig, amplicon_range, forward_primer, reverse_primer):
+    """
+    Extracts amplicon sequence from contig file
+    :param sample: sample metadata object
+    :param analysistype: string of analysis type
+    :param contig: name of the contig hit by primers
+    :param amplicon_range: range of the amplicon within the contig
+    :param forward_primer: name of the forward primer
+    :param reverse_primer: name of the reverse primer
+    """
+    # Open the file
+    with open(sample[analysistype].ampliconfile, 'a') as amp_file:
+        try:
+            # Load the records from the assembly into the dictionary
+            for record in SeqIO.parse(sample[analysistype].assemblyfile, 'fasta'):
+                if record.id == contig:
+                    try:
+                        # Extract the name of the gene from the primer name
+                        genename = forward_primer[0].split('-')[0]
+                        try:
+                            # Sort the range calculated above
+                            start = amplicon_range[0]
+                            end = amplicon_range[1]
+                            # Slice the gene sequence from the sequence record - remember to subtract one to
+                            # allow for zero-based indexing
+                            genesequence = str(record.seq)[int(start) - 1:int(end)]
+                            # Set the record.id to be the sample name, the contig name,
+                            # the range, and the primers
+                            record.id = '{sn}_{contig}_{start}-{end}_{primers}' \
+                                .format(sn=sample.name,
+                                        contig=contig,
+                                        start=str(start),
+                                        end=str(end),
+                                        primers='_'.join(['_'.join(forward_primer), '_'.join(reverse_primer)]))
+                            # Clear the record.description
+                            record.description = ''
+                            # Create a seq record from the sliced genome sequence
+                            record.seq = Seq.Seq(genesequence)
+                            # Write the amplicon to file
+                            SeqIO.write(record, amp_file, 'fasta')
+                        except IndexError:
+                            pass
+                    except AttributeError:
+                        pass
+        except FileNotFoundError:
+            pass
 
 
 class PrimerFinder(object):
@@ -45,11 +92,8 @@ class PrimerFinder(object):
             self.threads = self.cpus
         logging.info('Reading and formatting primers')
         self.primers()
-        logging.info('Baiting .fastq files against primers')
         self.bait()
-        logging.info('Baiting .fastq files against previously baited .fastq files')
         self.doublebait()
-        logging.info('Assembling contigs from double-baited .fastq files')
         self.assemble_amplicon_spades()
         logging.info('Creating BLAST database')
         self.make_blastdb()
@@ -87,7 +131,7 @@ class PrimerFinder(object):
             # Create an attribute for the current analysis
             setattr(sample, self.analysistype, GenObject())
             # Set the destination folder
-            sample[self.analysistype].outputdir = os.path.join(self.path, fastqname)
+            sample[self.analysistype].outputdir = os.path.join(self.reportpath, fastqname)
             # Make the destination folder
             make_path(sample[self.analysistype].outputdir)
             # Get the fastq files specific to the fastqname
@@ -119,7 +163,7 @@ class PrimerFinder(object):
             sample.name = os.path.splitext(os.path.split(fastafile)[-1])[0]
             setattr(sample, self.analysistype, GenObject())
             # Set the destination folder
-            sample[self.analysistype].outputdir = os.path.join(self.path, 'detailed_reports', sample.name)
+            sample[self.analysistype].outputdir = os.path.join(self.reportpath, 'detailed_reports', sample.name)
             # Make the destination folder
             make_path(sample[self.analysistype].outputdir)
             # Set the file type for the downstream analysis
@@ -152,7 +196,7 @@ class PrimerFinder(object):
         for sample in self.metadata:
             setattr(sample, self.analysistype, GenObject())
             # Set the destination folder
-            sample[self.analysistype].outputdir = os.path.join(self.path, self.analysistype)
+            sample[self.analysistype].outputdir = os.path.join(self.reportpath, self.analysistype)
             # Make the destination folder
             make_path(sample[self.analysistype].outputdir)
             sample[self.analysistype].baitedfastq = os.path.join(
@@ -219,6 +263,7 @@ class PrimerFinder(object):
         """
         Use bbduk to bait FASTQ reads from input files using the primer file as the target
         """
+        logging.info('Baiting .fastq files against primers')
         with progressbar(self.metadata) as bar:
             for sample in bar:
                 if sample.general.bestassemblyfile != 'NA':
@@ -258,6 +303,7 @@ class PrimerFinder(object):
         In order to ensure that there is enough sequence data to bridge the gap between the two primers, the paired
         .fastq files produced above will be used to bait the original input .fastq files
         """
+        logging.info('Baiting .fastq files against previously baited .fastq files')
         with progressbar(self.metadata) as bar:
             for sample in bar:
                 if sample.general.bestassemblyfile != 'NA':
@@ -328,7 +374,8 @@ class PrimerFinder(object):
         """
         Use SPAdes to assemble the amplicons using the double-baited .fastq files
         """
-        for _ in self.metadata:
+        logging.info('Assembling contigs from double-baited .fastq files')
+        for _ in range(self.cpus):
             # Send the threads to the merge method. :args is empty as I'm using
             threads = Thread(target=self.assemble, args=())
             # Set the daemon to true - something to do with thread management
@@ -432,8 +479,8 @@ class PrimerFinder(object):
                                            task='blastn-short',
                                            num_alignments=1000000,
                                            num_threads=self.threads,
-                                           outfmt="'6 qseqid sseqid positive mismatch gaps evalue bitscore slen length "
-                                                  "qstart qend qseq sstart send sseq'",
+                                           outfmt='6 qseqid sseqid positive mismatch gaps evalue bitscore slen '
+                                                  'length qstart qend qseq sstart send sseq',
                                            out=sample[self.analysistype].report)
             # Save the blast command in the metadata
             sample[self.analysistype].blastcommand = str(blastn)
@@ -462,7 +509,7 @@ class PrimerFinder(object):
     def parseblast(self):
         """
         Parse the BLAST results produced above. Find primer pairs with full-length hits with mismatches equal or
-        lesser than the cutoff value
+        less than the cutoff value
         """
         for sample in self.metadata:
             if sample.general.bestassemblyfile != 'NA' and sample[self.analysistype].assemblyfile != 'NA':
@@ -480,7 +527,6 @@ class PrimerFinder(object):
                 csvfile.readline()
                 # Open the sequence profile file as a dictionary
                 blastdict = DictReader(csvfile, fieldnames=self.fieldnames, dialect='excel-tab')
-
                 # Go through each BLAST result
                 for row in blastdict:
                     # Ensure that the hit is full-length, and that the number of mismatches is equal to or lesser
@@ -628,7 +674,7 @@ class PrimerFinder(object):
         Create reports of the analyses
         """
         # Create a folder in which amplicons and raw BLAST results are to be stored
-        detailed_reports = os.path.join(self.path, 'detailed_reports')
+        detailed_reports = os.path.join(self.reportpath, 'detailed_reports')
         make_path(detailed_reports)
         # Create the report path if necessary
         make_path(self.reportpath)
@@ -682,7 +728,7 @@ class PrimerFinder(object):
                                 ntrange = list(sample[self.analysistype].range[contig][gene])
                                 sample[self.analysistype].ntrange[gene] = ntrange
                                 # Extract the amplicons from the sequence file
-                                self.ampliconfile(sample, contig, sorted(ntrange), forward, reverse)
+                                ampliconfile(sample, self.analysistype, contig, sorted(ntrange), forward, reverse)
                                 # Copy the amplicons and raw BLAST outputs from FASTQ-formatted files to the
                                 # detailed_reports folder
                                 if sample[self.analysistype].filetype == 'fastq':
@@ -748,59 +794,9 @@ class PrimerFinder(object):
         except IOError:
             pass
 
-    def ampliconfile(self, sample, contig, amplicon_range, forward_primer, reverse_primer):
-        """
-        Extracts amplicon sequence from contig file
-        :param sample: sample metadata object
-        :param contig: name of the contig hit by primers
-        :param amplicon_range: range of the amplicon within the contig
-        :param forward_primer: name of the forward primer
-        :param reverse_primer: name of the reverse primer
-        """
-        # Open the file
-        with open(sample[self.analysistype].ampliconfile, 'a') as ampliconfile:
-            try:
-                # Load the records from the assembly into the dictionary
-                for record in SeqIO.parse(sample[self.analysistype].assemblyfile, 'fasta'):
-                    if record.id == contig:
-                        try:
-                            # Extract the name of the gene from the primer name
-                            genename = forward_primer[0].split('-')[0]
-                            try:
-                                # Sort the range calculated above
-                                start = amplicon_range[0]
-                                end = amplicon_range[1]
-                                # Slice the gene sequence from the sequence record - remember to subtract one to
-                                # allow for zero-based indexing
-                                genesequence = str(record.seq)[int(start) - 1:int(end)]
-                                # Set the record.id to be the sample name, the contig name,
-                                # the range, and the primers
-                                record.id = '{sn}_{contig}_{range}_{primers}' \
-                                    .format(sn=sample.name,
-                                            contig=contig,
-                                            range='_'.join(str(x) for x in sorted(sample[self.analysistype]
-                                                                                  .range[record.id][genename])),
-                                            primers='_'.join(['_'.join(forward_primer), '_'.join(reverse_primer)]))
-                                # Clear the record.description
-                                record.description = ''
-                                # Create a seq record from the sliced genome sequence
-                                record.seq = Seq.Seq(genesequence)
-                                # Write the amplicon to file
-                                SeqIO.write(record, ampliconfile, 'fasta')
-                            except IndexError:
-                                pass
-                        except AttributeError:
-                            pass
-            except FileNotFoundError:
-                pass
-
-    def __init__(self, path, sequence_path, primer_file, mismatches, kmer_length, analysistype, cpus=None,
+    def __init__(self, sequence_path, primer_file, mismatches, kmer_length, analysistype, cpus=None,
                  metadata=None, filetype='fastq'):
         # Create the class variables from the supplied arguments
-        if path.startswith('~'):
-            self.path = os.path.abspath(os.path.expanduser(os.path.join(path)))
-        else:
-            self.path = os.path.abspath(os.path.join(path))
         if sequence_path.startswith('~'):
             self.sequencepath = os.path.abspath(os.path.expanduser(os.path.join(sequence_path)))
         else:
@@ -821,7 +817,7 @@ class PrimerFinder(object):
             self.cpus = multiprocessing.cpu_count() - 1
         self.threads = int()
         self.analysistype = analysistype
-        self.formattedprimers = os.path.join(self.path, 'formattedprimers.fa')
+        self.formattedprimers = os.path.join(os.path.dirname(self.primerfile), 'formattedprimers.fa')
         self.faidict = dict()
         self.filetype = filetype
         # Use a long kmer for SPAdes assembly
@@ -834,7 +830,7 @@ class PrimerFinder(object):
                            'query_start', 'query_end', 'query_sequence',
                            'subject_start', 'subject_end', 'subject_sequence']
         # Set the report path
-        self.reportpath = os.path.join(self.path, 'consolidated_report')
+        self.reportpath = os.path.join(self.sequencepath, 'consolidated_report')
         self.report = os.path.join(self.reportpath, '{at}_report.csv'.format(at=self.analysistype))
         # The default length for the initial baiting - if there are primers shorter than this, then the shortest
         # value will be used
@@ -845,9 +841,6 @@ class PrimerFinder(object):
 
 if __name__ == '__main__':
     parser = ArgumentParser(description='Perform in silico PCR using bbduk and SPAdes')
-    parser.add_argument('-p', '--path',
-                        required=True,
-                        help='Specify directory in which reports are to be created')
     parser.add_argument('-s', '--sequencepath',
                         required=True,
                         help='Path of folder containing .fasta/.fastq(.gz) files to process.')
@@ -882,8 +875,7 @@ if __name__ == '__main__':
     arguments.start = time.time()
 
     # Run the script
-    finder = PrimerFinder(path=arguments.path,
-                          sequence_path=arguments.sequencepath,
+    finder = PrimerFinder(sequence_path=arguments.sequencepath,
                           primer_file=arguments.primerfile,
                           mismatches=arguments.mismatches,
                           kmer_length=arguments.kmerlength,

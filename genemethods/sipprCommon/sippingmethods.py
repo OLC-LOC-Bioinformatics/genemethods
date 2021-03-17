@@ -158,7 +158,7 @@ class Sippr(object):
                         # Create the command to run the baiting - paired inputs and a single, zipped output
                         sample[self.analysistype].bbdukcmd = \
                             'bbduk.sh -Xmx{mem} ref={ref} in1={in1} in2={in2} k={kmer} maskmiddle={mm} ' \
-                            'threads={c} outm={om}' \
+                            'threads={c} outm={om} fixjunk' \
                             .format(mem=self.mem,
                                     ref=sample[self.analysistype].baitfile,
                                     in1=sample.general.trimmedcorrectedfastqfiles[0],
@@ -170,7 +170,7 @@ class Sippr(object):
                     else:
                         sample[self.analysistype].bbdukcmd = \
                             'bbduk.sh -Xmx{mem} ref={ref} in={in1} k={kmer} maskmiddle={mm} ' \
-                            'threads={cpus} outm={outm}' \
+                            'threads={cpus} outm={outm} fixjunk' \
                             .format(mem=self.mem,
                                     ref=sample[self.analysistype].baitfile,
                                     in1=sample.general.trimmedcorrectedfastqfiles[0],
@@ -384,7 +384,7 @@ class Sippr(object):
 
     def indexing(self):
         logging.info('Indexing sorted BAM files')
-        for i in range(len(self.runmetadata)):
+        for i in range(self.threads):
             # Send the threads to
             threads = Thread(target=self.index, args=())
             # Set the daemon to true - something to do with thread management

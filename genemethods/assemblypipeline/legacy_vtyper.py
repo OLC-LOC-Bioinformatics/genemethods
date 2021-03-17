@@ -1,15 +1,13 @@
 #!/usr/bin/env python3
 from olctools.accessoryFunctions.accessoryFunctions import GenObject, make_path, MetadataObject, run_subprocess, \
     SetupLogging
-from Bio import Data, SeqIO, Seq
-from Bio.Data import IUPACData
+from Bio import SeqIO, Seq
 from argparse import ArgumentParser
 from itertools import product
 from threading import Thread
 from queue import Queue
 import multiprocessing
 from glob import glob
-from time import time
 import logging
 import shutil
 import os
@@ -18,85 +16,164 @@ import re
 __author__ = 'adamkoziol'
 
 
+def fasta_primers(primerfile, forward_dict, reverse_dict):
+    """
+    Read in the primer file, and create a properly formatted output file that takes any degenerate bases
+    into account
+    :param primerfile: Name and path of FASTA-formatted primer file to parse
+    :param forward_dict: Dictionary of name: sequence of all forward primers
+    :param reverse_dict: Dictionary of name: sequence of all reverse primers
+    :return: Populated forward_dict and reverse_dict
+    """
+    logging.info('Populating primer dictionaries')
+    # Dictionary of degenerate IUPAC codes
+    iupac = {
+        'R': ['A', 'G'],
+        'Y': ['C', 'T'],
+        'S': ['C', 'G'],
+        'W': ['A', 'T'],
+        'K': ['G', 'T'],
+        'M': ['A', 'C'],
+        'B': ['C', 'G', 'T'],
+        'D': ['A', 'G', 'T'],
+        'H': ['A', 'C', 'T'],
+        'V': ['A', 'C', 'G'],
+        'N': ['A', 'C', 'G', 'T'],
+        'A': ['A'],
+        'C': ['C'],
+        'G': ['G'],
+        'T': ['T']
+    }
+    primerlist = list()
+    for record in SeqIO.parse(primerfile, 'fasta'):
+        # from https://stackoverflow.com/a/27552377 - find any degenerate bases in the primer sequence, and
+        # create all possibilities as a list
+        try:
+            primerlist = [''.join(base) for base in product(*[iupac[seq] for seq in str(record.seq).upper()])]
+        except TypeError:
+            logging.error("Invalid Primer Sequence: {seq}".format(seq=str(record.seq)))
+            quit()
+        # As the record.id is being updated in the loop below, set the name of the primer here so that will
+        # be able to be recalled when setting the new record.ids
+        primername = record.id
+        # Iterate through all the possible primers created from any degenerate bases
+        for primer in primerlist:
+            # Split the base name of the target from the direction
+            # e.g. vtx1a-F1 is split in vtx1a and F1
+            basename, direction = primername.split('-')
+            # Populate the dictionaries of forward and reverse primers based on the direction determined above
+            if direction.startswith('F'):
+                # Attempt to add the current primer sequence to the dictionary
+                try:
+                    forward_dict[basename].append(primer)
+                # On a key error, initialise the list of primers
+                except KeyError:
+                    forward_dict[basename] = list()
+                    forward_dict[basename].append(primer)
+            else:
+                try:
+                    reverse_dict[basename].append(primer)
+                except KeyError:
+                    reverse_dict[basename] = list()
+                    reverse_dict[basename].append(primer)
+    return forward_dict, reverse_dict
+
+
+def epcr_primer_file(formattedprimers, forward_dict, reverse_dict, minampliconsize=0, maxampliconsize=0):
+    """
+    Create the ePCR-compatible primer file from the dictionaries of primer combinations
+    :param formattedprimers: Name and path of ePCR-formatted primer file to be created
+    :param forward_dict: Dictionary of name: sequence of all forward primers
+    :param reverse_dict: Dictionary of name: sequence of all reverse primers
+    :param minampliconsize: Integer of the minimum amplicon size to search
+    :param maxampliconsize: Integer of the maximum amplicon size to search
+    """
+    logging.info('Creating re-PCR-compatible primer file')
+    with open(formattedprimers, 'w') as formatted:
+        # Iterate through all the targets
+        for basename in sorted(forward_dict):
+            # Use enumerate to number the iterations for each forward and reverse primer in the lists
+            for forward_index, forward_primer in enumerate(forward_dict[basename]):
+                for reverse_index, reverse_primer in enumerate(reverse_dict[basename]):
+                    # Set the name of the primer using the target name, and the indices of the primers
+                    # e.g. vtx1a_0_0
+                    primer_name = '{bn}_{fi}_{ri}'.format(bn=basename,
+                                                          fi=forward_index,
+                                                          ri=reverse_index)
+                    # Create the string to write to the ePCR-compatible primer file
+                    # e.g. vtx1a_0_0	CCTTTCCAGGTACAACAGCGGTT	GGAAACTCATCAGATGCCATTCTGG
+                    output_string = '{pn}\t{fp}\t{rp}'.format(pn=primer_name,
+                                                              fp=forward_primer,
+                                                              rp=reverse_primer)
+                    # If desired, add the minimum and maximum amplicon size information
+                    if maxampliconsize:
+                        output_string += '\t{min}\t{max}\n'.format(min=minampliconsize,
+                                                                   max=maxampliconsize)
+                    else:
+                        output_string += '\n'
+                    # Write the string to file
+                    formatted.write(output_string)
+
+
+def epcr_primers(primerfile, forward_dict, reverse_dict, formattedprimers, copyfile=True):
+    """
+    Read in the ePCR-formatted primer file, and populate forward and reverse primer dictionaries
+    :param primerfile: Name and absolute path to the primer file to parse
+    :param forward_dict: Dictionary of all forward primer sequences
+    :param reverse_dict: Dictionary of all reverse primer sequences
+    :param formattedprimers: Name and absolute path of ePCR-formatted primer file
+    :param copyfile: Boolean of whether the primer file should be copied to the formatted primer file path
+    :return: Updated forward_dict and reverse_dict
+    """
+    logging.info('Populating primer dictionaries')
+    with open(primerfile, 'r') as primer_file:
+        for line in primer_file:
+            if len(line.split()) == 5:
+                basename, forward_seq, reverse_seq, min_amplicon, max_amplicon = line.rstrip().split()
+            elif len(line.split()) == 4:
+                basename, forward_seq, reverse_seq, max_amplicon = line.rstrip().split()
+            else:
+                basename, forward_seq, reverse_seq = line.rstrip().split()
+            # Add the current primer sequence to the dictionary
+            forward_dict[basename] = forward_seq
+            reverse_dict[basename] = reverse_seq
+    # Copy the primer file to the location store in self.formattedprimers - makes code reuse easier
+    if copyfile:
+        try:
+            shutil.copyfile(src=primerfile,
+                            dst=formattedprimers)
+        except shutil.SameFileError:
+            pass
+    # Return the updated dictionaries
+    return forward_dict, reverse_dict
+
+
 class Vtyper(object):
 
     def vtyper(self):
-        # if not os.path.isfile(self.formattedprimers):
-        self.epcr_primers(primerfile=self.primerfile)
-        self.epcr_primer_file(formattedprimers=self.formattedprimers)
+        self.primer_prep()
         self.epcr_threads(formattedprimers=self.formattedprimers)
         self.epcr_parse()
         self.epcr_report()
 
-    def epcr_primers(self, primerfile):
-        """
-        Read in the primer file, and create a properly formatted output file that takes any degenerate bases
-        into account
-        """
-        logging.info('Populating primer dictionaries')
-        for record in SeqIO.parse(primerfile, 'fasta'):
-            # from https://stackoverflow.com/a/27552377 - find any degenerate bases in the primer sequence, and
-            # create all possibilities as a list
-            degenerates = Data.IUPACData.ambiguous_dna_values
-            primerlist = list(map(''.join, product(*map(degenerates.get, str(record.seq).upper()))))
-            # As the record.id is being updated in the loop below, set the name of the primer here so that will
-            # be able to be recalled when setting the new record.ids
-            primername = record.id
-            # Iterate through all the possible primers created from any degenerate bases
-            for primer in primerlist:
-                # Split the base name of the target from the direction
-                # e.g. vtx1a-F1 is split in vtx1a and F1
-                basename, direction = primername.split('-')
-                # Populate the dictionaries of forward and reverse primers based on the direction determined above
-                if direction.startswith('F'):
-                    # Attempt to add the current primer sequence to the dictionary
-                    try:
-                        self.forward_dict[basename].append(primer)
-                    # On a key error, initialise the list of primers
-                    except KeyError:
-                        self.forward_dict[basename] = list()
-                        self.forward_dict[basename].append(primer)
-                else:
-                    try:
-                        self.reverse_dict[basename].append(primer)
-                    except KeyError:
-                        self.reverse_dict[basename] = list()
-                        self.reverse_dict[basename].append(primer)
+    def primer_prep(self):
+        self.forward_dict, self.reverse_dict = fasta_primers(primerfile=self.primerfile,
+                                                             forward_dict=self.forward_dict,
+                                                             reverse_dict=self.reverse_dict)
 
-    def epcr_primer_file(self, formattedprimers):
-        """
-        Create the ePCR-compatible primer file from the dictionaries of primer combinations
-        """
-        logging.info('Creating re-PCR-compatible primer file')
-        with open(formattedprimers, 'w') as formatted:
-            # Iterate through all the targets
-            for basename in sorted(self.forward_dict):
-                # Use enumerate to number the iterations for each forward and reverse primer in the lists
-                for forward_index, forward_primer in enumerate(self.forward_dict[basename]):
-                    for reverse_index, reverse_primer in enumerate(self.reverse_dict[basename]):
-                        # Set the name of the primer using the target name, and the indices of the primers
-                        # e.g. vtx1a_0_0
-                        primer_name = '{bn}_{fi}_{ri}'.format(bn=basename,
-                                                              fi=forward_index,
-                                                              ri=reverse_index)
-                        # Create the string to write to the ePCR-compatible primer file
-                        # e.g. vtx1a_0_0	CCTTTCCAGGTACAACAGCGGTT	GGAAACTCATCAGATGCCATTCTGG
-                        output_string = '{pn}\t{fp}\t{rp}\n'.format(pn=primer_name,
-                                                                    fp=forward_primer,
-                                                                    rp=reverse_primer)
-                        # Write the string to file
-                        formatted.write(output_string)
+        epcr_primer_file(formattedprimers=self.formattedprimers,
+                         forward_dict=self.forward_dict,
+                         reverse_dict=self.reverse_dict)
 
-    def epcr_threads(self, formattedprimers, ampliconsize=10000):
+    def epcr_threads(self, formattedprimers, ampliconsize=1500):
         """
         Run ePCR in a multi-threaded fashion
         """
         # Create the threads for the ePCR analysis
-        for sample in self.metadata:
-            if sample.general.bestassemblyfile != 'NA':
-                threads = Thread(target=self.epcr, args=())
-                threads.setDaemon(True)
-                threads.start()
+        for _ in range(self.cpus):
+            threads = Thread(target=self.epcr, args=())
+            threads.setDaemon(True)
+            threads.start()
         logging.info('Running ePCR analyses')
         for sample in self.metadata:
             if sample.general.bestassemblyfile != 'NA':
@@ -118,7 +195,7 @@ class Vtyper(object):
                             outfile=outfile)
                 # re-PCR uses the subtyping primers list to search the contigs file using the following parameters
                 # -S {hash file} (Perform STS lookup using hash-file), -r + (Enable/disable reverse STS lookup)
-                # -m 10000 (Set variability for STS size for lookup), this very large, as I don't necessarily know
+                # -m 1500 (Set variability for STS size for lookup), this very large, as I don't necessarily know
                 # the size of the amplicon
                 # -n 1 (Set max allowed mismatches per primer pair for lookup)
                 # -g 0 (Set max allowed indels per primer pair for lookup),
@@ -200,27 +277,38 @@ class Vtyper(object):
     def __init__(self, inputobject, analysistype, mismatches=2):
         self.metadata = inputobject.runmetadata.samples
         self.analysistype = analysistype
-        self.start = inputobject.starttime
         self.reportpath = inputobject.reportpath
+        self.primer_format = inputobject.primer_format
         self.mismatches = mismatches
         make_path(self.reportpath)
         self.devnull = open(os.devnull, 'wb')
+        self.cpus = multiprocessing.cpu_count() - 1
         self.epcrqueue = Queue()
         # Extract the path of the current script from the full path + file name
         self.homepath = os.path.split(os.path.abspath(__file__))[0]
-        self.primerfile = os.path.join(self.homepath, 'primers.txt')
         self.formattedprimers = os.path.join(self.homepath, 'ssi_subtyping_primers.txt')
+        self.primerfile = os.path.join(self.homepath, 'primers.txt')
         self.forward_dict = dict()
         self.reverse_dict = dict()
 
 
 class Custom(object):
     def main(self):
-        if not os.path.isfile(self.formattedprimers):
+        if self.primer_format == 'fasta':
+            # if not os.path.isfile(self.formattedprimers):
             logging.info('Extracting primer sequences')
-            self.vtyper_object.epcr_primers(primerfile=self.primerfile)
+            fasta_primers(primerfile=self.primerfile,
+                          forward_dict=self.forward_dict,
+                          reverse_dict=self.reverse_dict)
             logging.info('Creating ePCR-compatible primer file')
-            self.vtyper_object.epcr_primer_file(formattedprimers=self.formattedprimers)
+            epcr_primer_file(formattedprimers=self.formattedprimers,
+                             forward_dict=self.forward_dict,
+                             reverse_dict=self.reverse_dict)
+        else:
+            self.forward_dict, self.reverse_dict = epcr_primers(primerfile=self.primerfile,
+                                                                forward_dict=self.forward_dict,
+                                                                reverse_dict=self.reverse_dict,
+                                                                formattedprimers=self.formattedprimers)
         self.vtyper_object.epcr_threads(formattedprimers=self.formattedprimers,
                                         ampliconsize=self.ampliconsize)
         logging.info('Parsing ePCR outputs'.format())
@@ -230,7 +318,7 @@ class Custom(object):
 
     def parse_epcr(self):
         """
-        Parse the ePCR output file. Populate dictionary of resutls. For alleles, find the best result based on the
+        Parse the ePCR output file. Populate dictionary of results. For alleles, find the best result based on the
         number of mismatches before populating dictionary
         """
         # Use the metadata object from the vtyper_object
@@ -367,10 +455,10 @@ class Custom(object):
                     except AttributeError:
                         pass
 
-    def __init__(self, inputobject, analysistype, primerfile, ampliconsize, mismatches=2, export_amplicons=False):
+    def __init__(self, inputobject, analysistype, primerfile, ampliconsize, primer_format, mismatches=2,
+                 export_amplicons=False):
         self.runmetadata = inputobject.runmetadata
         self.analysistype = analysistype
-        self.starttime = inputobject.starttime
         self.reportpath = inputobject.reportpath
         self.primerfile = primerfile
         if not self.primerfile:
@@ -378,7 +466,9 @@ class Custom(object):
         assert os.path.isfile(self.primerfile), 'Cannot locate the specified FASTA-formatted primer file: {pf}'\
             .format(pf=self.primerfile)
         self.ampliconsize = ampliconsize
+        self.primer_format = primer_format
         self.mismatches = mismatches
+        self.primer_format = inputobject.primer_format
         self.formattedprimers = os.path.join(os.path.dirname(self.primerfile), 'epcr_formatted_primers',
                                              'formatted_primers.txt')
         make_path(os.path.dirname(self.formattedprimers))
@@ -390,6 +480,8 @@ class Custom(object):
         self.devnull = open(os.devnull, 'wb')
         self.epcrqueue = Queue(maxsize=multiprocessing.cpu_count())
         self.export_amplicons = export_amplicons
+        self.forward_dict = dict()
+        self.reverse_dict = dict()
         # Create an object, so that the script can call methods from the Vtyper class
         self.vtyper_object = Vtyper(inputobject=self,
                                     analysistype=self.analysistype,
@@ -407,6 +499,10 @@ class Filer(object):
         """
         # List to store all the metadata objects
         samples = list()
+        if args.sequencepath.startswith('~'):
+            args.sequencepath = os.path.abspath(os.path.expanduser(os.path.join(args.sequencepath)))
+        else:
+            args.sequencepath = os.path.abspath(os.path.join(args.sequencepath))
         # Find all the sequence files in the path
         fastas = sorted(glob(os.path.join(args.sequencepath, '*.fa*')))
         for fasta in fastas:
@@ -446,14 +542,30 @@ if __name__ == '__main__':
                                  '>primer2-F\n'
                                  'etc.')
         parser.add_argument('-pf', '--primerfile',
-                            default=str(),
+                            help='Absolute path and name of the primer file to test')
+        parser.add_argument('-f', '--primer_format',
+                            choices=['epcr', 'fasta'],
+                            default='fasta',
                             type=str,
-                            help='Absolute path to the custom FASTA-formatted primer file required for the "custom" '
-                                 'analysis type option')
+                            help='Format of the supplied primer file. Choices are "epcr" and "fasta". Default is '
+                                 'fasta. epcr format describes one white-space delimited PCR reaction per line. '
+                                 'The following fields be included: name of primer pair, sequence of forward '
+                                 'primer, sequence of reverse primer, min amplicon size, max amplicon size e.g.\n'
+                                 'vtx1a CCTTTCCAGGTACAACAGCGGTT GGAAACTCATCAGATGCCATTCTGG 0 1500\n'
+                                 'vtx1c CCTTTCCTGGTACAACTGCGGTT CAAGTGTTGTACGAAATCCCCTCTGA 0 1500\n'
+                                 '.......\n'
+                                 'fasta format must have every primer on a separate line AND -F/-R following the '
+                                 'name e.g.\n'
+                                 '>vtx1a-F\n'
+                                 'CCTTTCCAGGTACAACAGCGGTT\n'
+                                 '>vtx1a-R\n'
+                                 'GGAAACTCATCAGATGCCATTCTGG\n'
+                                 '>vtx1c-F\n'
+                                 '.......\n')
         parser.add_argument('-mas', '--maxampliconsize',
-                            default=10000,
+                            default=1500,
                             type=int,
-                            help='Maximum size of amplicons. Default is 10000')
+                            help='Maximum size of amplicons. Default is 1500')
         parser.add_argument('-d', '--debug',
                             action='store_true',
                             help='Enable debug-level messages')
@@ -463,7 +575,6 @@ if __name__ == '__main__':
         # Get the arguments into an object
         arguments = parser.parse_args()
         SetupLogging(debug=arguments.debug)
-        arguments.starttime = time()
         arguments.reportpath = os.path.join(arguments.sequencepath, 'reports')
         arguments.runmetadata = MetadataObject()
         # Create metadata objects for the samples
@@ -479,6 +590,7 @@ if __name__ == '__main__':
                           analysistype='custom_epcr',
                           primerfile=arguments.primerfile,
                           ampliconsize=arguments.maxampliconsize,
+                          primer_format=arguments.primer_format,
                           mismatches=arguments.mismatches,
                           export_amplicons=arguments.export_amplicons)
             epcr.main()
