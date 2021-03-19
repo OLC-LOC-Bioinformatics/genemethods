@@ -561,7 +561,10 @@ def run_blast(metadata, analysistype, formattedprimers, blastheader, threads):
                                            task='blastn-short',
                                            word_size=4,
                                            dust='no',
-                                           penalty=-1,
+                                           penalty=-2,
+                                           reward=3,
+                                           gapopen=5,
+                                           gapextend=5,
                                            num_alignments=1000000,
                                            num_threads=threads,
                                            outfmt='6 qseqid sseqid positive mismatch gaps evalue bitscore slen '
@@ -1167,6 +1170,7 @@ class CustomIP(object):
                                     fastaprimerfile=self.fastaprimers)
             # Create a BLAST database from the primer file
             make_blastdb(formattedprimers=self.fastaprimers)
+            make_blastdb(formattedprimers=self.formattedprimers)
             self.metadata = run_blast(metadata=self.metadata,
                                       analysistype=self.analysistype,
                                       formattedprimers=self.fastaprimers,
@@ -1287,7 +1291,8 @@ class CustomIP(object):
         self.mismatches = mismatches
         self.formattedprimers = os.path.join(os.path.dirname(self.primerfile), 'epcr_formatted_primers',
                                              'formatted_primers.txt')
-        self.fastaprimers = os.path.join(os.path.dirname(self.primerfile), 'formattedprimers.fa')
+        self.fastaprimers = os.path.join(os.path.dirname(self.primerfile), 'formattedprimers.fa') if \
+            self.primer_format != 'fasta' else self.primerfile
         make_path(os.path.dirname(self.formattedprimers))
         try:
             shutil.rmtree(self.reportpath)
@@ -1385,6 +1390,9 @@ def cli():
                              'primer sets, and you are looking for the best one. Default is 0 "custom" analyses, and '
                              '150 for "vtyper" (vtx1c and vtx1d sets don\'t quite overlap, but the script requires '
                              'an overlap for finding the best primer set)')
+    parser.add_argument('-cb', '--contigbreaks',
+                        action='store_true',
+                        help='Use BLAST to find hits that may be on separate contigs')
     # Get the arguments into an object
     arguments = parser.parse_args()
     SetupLogging(debug=arguments.debug)
@@ -1408,7 +1416,8 @@ def cli():
                         primer_format=arguments.primer_format,
                         mismatches=arguments.mismatches,
                         export_amplicons=arguments.export_amplicons,
-                        range_buffer=arguments.range_buffer)
+                        range_buffer=arguments.range_buffer,
+                        contigbreaks=arguments.contigbreaks)
         epcr.main()
 
 
