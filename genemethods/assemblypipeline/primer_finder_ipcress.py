@@ -371,7 +371,7 @@ def determine_mismatch_locations(ref_primer, query_primer, iupac):
     # Initialise a string to hold mismatch details
     mismatch_string = str()
     # Iterate through every base of the primer sequence
-    for pos, ref_base in enumerate(ref_primer):
+    for pos, ref_base in enumerate(ref_primer.upper()):
         # Use the iterator to extract the corresponding base of the query sequence
         query_base = query_primer[pos]
         # Determine if the ref base and the query base do not match. If the primer has an IUPAC degenerate base e.g.
@@ -812,7 +812,13 @@ def blast_primer_mismatch_details(metadata, analysistype, iupac):
                                                  .forward_query,
                                                  primer_pos_range=sample[analysistype].results[experiment][contig]
                                                  .forward_pos_range,
-                                                 iupac=iupac)
+                                                 query_pos_range=sample[analysistype].results[experiment][contig]
+                                                 .forward_range,
+                                                 iupac=iupac,
+                                                 sample=sample,
+                                                 contig=contig,
+                                                 direction=sample[analysistype].results[experiment][contig]
+                                                 .forward_direction)
                         except AttributeError:
                             pass
                         # Reverse primer
@@ -825,7 +831,13 @@ def blast_primer_mismatch_details(metadata, analysistype, iupac):
                                                  .reverse_query,
                                                  primer_pos_range=sample[analysistype].results[experiment][contig]
                                                  .reverse_pos_range,
-                                                 iupac=iupac)
+                                                 query_pos_range=sample[analysistype].results[experiment][contig]
+                                                 .reverse_range,
+                                                 iupac=iupac,
+                                                 sample=sample,
+                                                 contig=contig,
+                                                 direction=sample[analysistype].results[experiment][contig]
+                                                 .reverse_direction)
                         except AttributeError:
                             pass
                     except AttributeError:
@@ -833,29 +845,79 @@ def blast_primer_mismatch_details(metadata, analysistype, iupac):
     return metadata
 
 
-def blast_mismatches(ref_primer, query_primer, primer_pos_range, iupac):
+def blast_mismatches(ref_primer, query_primer, primer_pos_range, query_pos_range, iupac, sample, contig, direction):
     """
     Calculate mismatch details of BLAST hits
     :param ref_primer: String of primer sequence
     :param query_primer: String of query sequence hitting the primer sequence
     :param primer_pos_range: Range of bases in the primer covered by the hit to the query sequence
+    :param query_pos_range: Range of bases in the query sequence
     :param iupac: Dictionary of IUPAC base: corresponding list of bases
+    :param sample: Metadata object of current sample
+    :param contig: Name of contig with the hit
+    :param direction: Direction of the hit
     :return: mismatch_string: String of the mismatch details
     :return: query_primer: Query primer padded with '-' to be the same length as the ref_primer
     """
+    front_padding = 0
+    end_padding = 0
     # Determine if the BLAST hit starts at the beginning of the ref_primer
     if not primer_pos_range[0] == 1:
         # Pad the start of query_primer with the number of missing bases
-        query_primer = '-' * (primer_pos_range[0] - 1) + query_primer
+        front_padding = primer_pos_range[0] - 1
     # Check if the query primer is shorter than the reference primer
     if len(query_primer) < len(ref_primer):
         # Pad the end of the primer with the number of missing bases
-        query_primer = query_primer + '-' * (len(ref_primer) - len(query_primer))
+        end_padding = len(ref_primer) - len(query_primer) - front_padding
+    query_primer = extract_sequence(sample=sample,
+                                    contig=contig,
+                                    query_pos_range=query_pos_range,
+                                    front_padding=front_padding,
+                                    end_padding=end_padding,
+                                    direction=direction)
     # Calculate the mismatch details
     mismatch_string = determine_mismatch_locations(ref_primer=ref_primer,
                                                    query_primer=query_primer,
                                                    iupac=iupac)
     return mismatch_string, query_primer
+
+
+def extract_sequence(sample, contig, query_pos_range, front_padding, end_padding, direction):
+    """
+    Extract the sequence from the query genome using the range of the hit
+    :param sample: Metadata object for the current query
+    :param contig: Name of contig with the hit
+    :param query_pos_range: The range of the hit on the contig
+    :param front_padding: Integer of the number of bases missing from the 5' end of the match
+    :param end_padding: Integer of the number of bases missing from the 3' end of the match
+    :param direction: Direction of the hit
+    :return: query_sequence: Extracted query sequence
+    """
+    # Initialise the string of the query sequence
+    query_sequence = str()
+    # Read in the query genome using SeqIO
+    for record in SeqIO.parse(sample.general.bestassemblyfile, 'fasta'):
+        # Ensure that the contig is the one with the hit
+        if record.id == contig:
+            # Set the start and stop positions of the amplicon sequence depending on the direction
+            if direction == 'revcomp':
+                # Reverse hits are the beginning of the range minus the number of missing bases to pad the end (minus
+                # one) due to zero-based indexing
+                start = query_pos_range[0] - end_padding - 1
+                # The end position is the the final position of the range plus the number of missing bases at the front
+                end = query_pos_range[-1] + front_padding + 1
+            else:
+                start = query_pos_range[0] - front_padding - 1
+                end = query_pos_range[-1] + end_padding + 1
+            # Extract the query sequence
+            query_sequence = str(record.seq)[start: end]
+            # Use the reverse complement of the sequence if the direction is reverse
+            if direction == 'revcomp':
+                seq_o = Seq(query_sequence)
+                query_sequence = seq_o.reverse_complement()
+    # Ensure that the sequence is in uppercase
+    query_sequence = query_sequence.upper()
+    return query_sequence
 
 
 def amplicon_write(metadata, analysistype, reportpath,):
