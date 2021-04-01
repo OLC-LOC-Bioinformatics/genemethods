@@ -1,2 +1,2 @@
-include genemethods/assemblypipeline/primers.txt
+include genemethods/assemblypipeline/*.txt
 include genemethods/assemblypipeline/ePCR/*
