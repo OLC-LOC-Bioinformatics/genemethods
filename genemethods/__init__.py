@@ -1,0 +1,2 @@
+def genemethods():
+    return None

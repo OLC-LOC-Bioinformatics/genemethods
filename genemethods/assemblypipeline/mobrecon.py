@@ -376,8 +376,8 @@ if __name__ == '__main__':
                     for i, header in enumerate(headers):
                         # Add the raw BLAST outputs (e.g. sample_id, positives, alignment_length, etc.) to the
                         # dictionary (gene name: header: result)
-                        sample.geneseekr_results.sampledata[result[1].lstrip('gb|').rstrip('|')].update({headers[i]:
-                                                                                                             result[i]})
+                        sample.geneseekr_results.sampledata[result[1].lstrip('gb|').rstrip('|')]\
+                            .update({headers[i]: result[i]})
         return metadata
 
 
