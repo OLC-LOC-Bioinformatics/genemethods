@@ -33,6 +33,7 @@ class GeneSippr(object):
         # Run the analyses
         Sippr(inputobject=self,
               cutoff=self.cutoff,
+              k=self.kmer_size,
               allow_soft_clips=self.allow_soft_clips)
         # Create the reports
         reports = Reports(self)
@@ -41,7 +42,7 @@ class GeneSippr(object):
         MetadataPrinter(self)
 
     def __init__(self, args, pipelinecommit, startingtime, scriptpath, analysistype, cutoff, pipeline, revbait,
-                 allow_soft_clips=False):
+                 allow_soft_clips=False, kmer_size=15):
         """
         :param args: command line arguments
         :param pipelinecommit: pipeline commit or version
@@ -122,8 +123,8 @@ class GeneSippr(object):
         except AttributeError:
             self.cpus = multiprocessing.cpu_count()
         try:
-            self.threads = int(self.cpus / len(self.runmetadata.samples)) if self.cpus / len(self.runmetadata.samples) \
-                                                                             > 1 else 1
+            self.threads = \
+                int(self.cpus / len(self.runmetadata.samples)) if self.cpus / len(self.runmetadata.samples) > 1 else 1
         except TypeError:
             self.threads = self.cpus
         self.taxonomy = {'Escherichia': 'coli', 'Listeria': 'monocytogenes', 'Salmonella': 'enterica'}
@@ -131,6 +132,7 @@ class GeneSippr(object):
         self.pipeline = pipeline
         self.revbait = revbait
         self.allow_soft_clips = allow_soft_clips
+        self.kmer_size = kmer_size
         # Run the analyses
         self.runner()
 
