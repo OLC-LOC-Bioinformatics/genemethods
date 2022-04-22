@@ -356,7 +356,7 @@ class Quality(object):
         if not os.path.isfile(confindr_report):
             make_path(reportpath)
             # Run confindr
-            systemcall = 'confindr.py -i {input_dir} -o {output_dir} -d {database_dir} --rmlst -bf 0.05 ' \
+            systemcall = 'confindr.py -i {input_dir} -o {output_dir} -d {database_dir} -t 12 --rmlst -bf 0.05 ' \
                          '--cross_details'\
                 .format(input_dir=input_dir,
                         output_dir=os.path.join(input_dir, 'confindr'),

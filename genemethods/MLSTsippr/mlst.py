@@ -495,26 +495,29 @@ class GeneSippr(object):
                             sample[self.analysistype].matches = list(self.resultprofile[sample.name][seqtype].keys())[0]
                             # Include the total number of genes in the database for cgMLST results
                             if self.analysistype == 'cgmlst':
-                                matches = '{matches}/{total}'.format(matches=sample[self.analysistype].matches,
-                                                                     total=len(sample[self.analysistype].allelenames))
-                            else:
-                                matches = sample[self.analysistype].matches
+                                sample[self.analysistype].matches \
+                                    = '{matches}/{total}'.format(matches=sample[self.analysistype].matches,
+                                                                 total=len(sample[self.analysistype].allelenames))
                             # If this is the first of one or more sequence types, include the sample name
                             if additional_fields:
+                                try:
+                                    additional = ','.join(self.meta_dict[sample[self.analysistype].profile][
+                                                                    seqtype][header].replace(',', ';')
+                                                          for header in additional_fields)
+                                except KeyError:
+                                    additional = 'NA'
                                 row += '{name},{mashgenus},{additional},{seqtype},{matches},'\
                                     .format(name=sample.name,
                                             mashgenus=genus,
-                                            additional=','.join(self.meta_dict[sample[self.analysistype].profile][
-                                                                    seqtype][header].replace(',', ';')
-                                                                for header in additional_fields),
+                                            additional=additional,
                                             seqtype=seqtype,
-                                            matches=matches)
+                                            matches=sample[self.analysistype].matches)
                             else:
                                 row += '{name},{mashgenus},{seqtype},{matches},' \
                                     .format(name=sample.name,
                                             mashgenus=genus,
                                             seqtype=seqtype,
-                                            matches=matches)
+                                            matches=sample[self.analysistype].matches)
                             # Create an attribute to store the results in a format suitable for parsing for creating
                             # the final combinedMetadata report
                             sample[self.analysistype].combined_metadata_results = dict()

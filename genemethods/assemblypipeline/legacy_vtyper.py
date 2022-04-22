@@ -468,7 +468,7 @@ class Custom(object):
         self.ampliconsize = ampliconsize
         self.primer_format = primer_format
         self.mismatches = mismatches
-        self.primer_format = inputobject.primer_format
+        # self.primer_format = inputobject.primer_format
         self.formattedprimers = os.path.join(os.path.dirname(self.primerfile), 'epcr_formatted_primers',
                                              'formatted_primers.txt')
         make_path(os.path.dirname(self.formattedprimers))

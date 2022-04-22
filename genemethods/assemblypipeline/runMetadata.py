@@ -121,7 +121,10 @@ class Metadata(object):
                 samplename = samplenamer(straindata, 1)
                 # Calculate the percentage of clusters associated with each strain
                 # noinspection PyTypeChecker
-                percentperstrain = "{:.2f}".format((float(straindata[3]) / tclusterspf * 100))
+                try:
+                    percentperstrain = "{:.2f}".format((float(straindata[3]) / tclusterspf * 100))
+                except ZeroDivisionError:
+                    percentperstrain = 0
                 try:
                     # Use the sample number -1 as the index in the list of objects created in parsesamplesheet
                     strainindex = int(straindata[0]) - 1
