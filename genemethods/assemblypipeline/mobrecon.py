@@ -25,7 +25,7 @@ class MobRecon(object):
 
     def recon(self):
         """
-        Prep
+        Run MOB-recon on the assemblies
         """
         logging.info('Running MOB-recon on Assemblies')
         with progressbar(self.metadata) as bar:
@@ -41,12 +41,15 @@ class MobRecon(object):
                 sample[self.analysistype].logerr = os.path.join(sample[self.analysistype].outputdir, 'err')
                 make_path(sample[self.analysistype].outputdir)
                 if sample.general.bestassemblyfile != 'NA':
+                    # Set the correct path depending on whether the script is being run as part of the COWBAT pipeline
+                    # or not
+                    database = self.databasepath if not self.pipeline else os.path.join(self.databasepath, 'mob_recon')
                     sample.commands.mobrecon = 'mob_recon -i {fasta} -o {outdir} --run_typer -n {threads} -d {db} ' \
                                                '--force'\
                         .format(fasta=sample.general.bestassemblyfile,
                                 outdir=sample[self.analysistype].outputdir,
                                 threads=self.threads,
-                                db=os.path.join(self.databasepath, 'mob_recon'))
+                                db=database)
                     # Ensure that the report doesn't already exist
                     if not os.path.isfile(sample[self.analysistype].contig_report):
                         # Run the analyses
@@ -194,12 +197,14 @@ class MobRecon(object):
                             # treated as integers
                             if str(amr_result[5]) == contig or str(amr_result[5].split('_')[0]) == contig:
                                 # Add the resistance and MOB recon outputs for the strain
+                                location = results['primary_cluster_id'] if results['molecule_type'] == 'plasmid' \
+                                    else 'chromosome'
                                 data += '{sn},{amr},{mob}\n'\
                                     .format(sn=sample.name,
                                             amr=','.join(str(res) if str(res) != 'nan' else 'ND' for res in
                                                          amr_result[0:4]),
                                             mob=','.join(str(res) if str(res) != 'nan' else 'ND' for res in
-                                                         [contig, results['primary_cluster_id'],
+                                                         [contig, location,
                                                           ';'.join(sorted(inc_dict[str(results['primary_cluster_id'])]))
                                                           ]
                                                          )
@@ -281,10 +286,14 @@ class MobRecon(object):
             pbs.write(data)
 
     def __init__(self, metadata, analysistype, databasepath, threads, logfile, reportpath, matchtype='amrsummary',
-                 cutoff=70):
+                 cutoff=70, pipeline=True):
         self.metadata = metadata
         self.analysistype = analysistype
-        self.databasepath = os.path.join(databasepath, analysistype)
+        if pipeline:
+            self.databasepath = os.path.join(databasepath, analysistype)
+        else:
+            self.databasepath = databasepath
+        self.pipeline = pipeline
         self.threads = threads
         self.logfile = logfile
         self.reportpath = reportpath
@@ -376,8 +385,8 @@ if __name__ == '__main__':
                     for i, header in enumerate(headers):
                         # Add the raw BLAST outputs (e.g. sample_id, positives, alignment_length, etc.) to the
                         # dictionary (gene name: header: result)
-                        sample.geneseekr_results.sampledata[result[1].lstrip('gb|').rstrip('|')].update({headers[i]:
-                                                                                                             result[i]})
+                        sample.geneseekr_results.sampledata[result[1].lstrip('gb|').rstrip('|')]\
+                            .update({headers[i]: result[i]})
         return metadata
 
 
@@ -405,11 +414,22 @@ if __name__ == '__main__':
                         choices=['blastn', 'blastp', 'blastx', 'tblastn', 'tblastx'],
                         help='BLAST program used to generate GeneSeekr results; will be used to determine which '
                              'reports to parse')
+    parser.add_argument('-o', '--output_path',
+                        help='Name and path of folder in which the reports are to be created')
+    parser.add_argument('-p', '--pipeline',
+                        action='store_false',
+                        help='This script is NOT being run as part of the COWBAT assembly pipeline. Default is true')
     SetupLogging()
     arguments = parser.parse_args()
     # Extract the list of strains in the sequence path, and create a metadata object with necessary values
     strains, metadata_object = strainer(arguments.sequencepath)
-    report_path = os.path.join(arguments.sequencepath, 'reports')
+    if not arguments.output_path:
+        report_path = os.path.join(arguments.sequencepath, 'reports')
+    else:
+        if arguments.output_path.startswith('~'):
+            report_path = os.path.expanduser(os.path.abspath(os.path.join(arguments.output_path)))
+        else:
+            report_path = os.path.abspath(os.path.join(arguments.output_path))
     # Update the metadata object with the correct report outputs
     if arguments.analysistype == 'amrsummary':
         metadata_object = resfinder_extract(reportpath=report_path,
@@ -425,5 +445,6 @@ if __name__ == '__main__':
                    logfile=os.path.join(arguments.sequencepath, 'log'),
                    reportpath=report_path,
                    matchtype=arguments.analysistype,
-                   cutoff=arguments.cutoff)
+                   cutoff=arguments.cutoff,
+                   pipeline=arguments.pipeline)
     mob.mob_recon()

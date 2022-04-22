@@ -1,2 +1,4 @@
 include genemethods/assemblypipeline/*.txt
 include genemethods/assemblypipeline/ePCR/*
+include genemethods/SequenceExtractor/tests/fastadetails/*
+include genemethods/SequenceExtractor/tests/sequences/*
