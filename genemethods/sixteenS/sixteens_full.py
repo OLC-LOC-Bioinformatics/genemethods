@@ -408,8 +408,10 @@ class SixteenS(object):
                                     sample[self.analysistype].sixteens_match.split('|')[-1].split()[1]
                         # Add the sample name to the data string
                         data += sample.name + ','
-                        # Find the record that matches the best hit, and extract the necessary values to be place in the
-                        # data string
+                        # Initialise an attribute to store the percent ID of the match
+                        sample[self.analysistype].percent_id = 'ND'
+                        # Find the record that matches the best hit, and extract the necessary values to be placed
+                        # in the data string
                         for name, identity in sample[self.analysistype].results.items():
                             if name == sample[self.analysistype].besthit:
                                 data += '{gene},{id},{genus},{depth}\n'.format(gene=sample[self.analysistype]
@@ -418,6 +420,8 @@ class SixteenS(object):
                                                                                genus=sample[self.analysistype].genus,
                                                                                depth=sample[self.analysistype]
                                                                                .avgdepth[name])
+                                # Update the identity attribute
+                                sample[self.analysistype].percent_id = identity
                                 # Create a FASTA-formatted sequence output of the 16S sequence
                                 record = SeqRecord(Seq(sample[self.analysistype].sequences[name]),
                                                    id='{sn}_16S'.format(sn=sample.name),
