@@ -85,17 +85,17 @@ def ipcress_threads(metadata, analysistype, formattedprimers, mismatches, ipcres
     # Create the threads for the ePCR analysis
     logging.info('Running ipcress analyses')
     for sample in metadata:
+        setattr(sample, analysistype, GenObject())
+        # Get the primers ready
+        sample[analysistype].primers = formattedprimers
+        sample[analysistype].report = '{of}.txt' \
+            .format(of=os.path.join(sample.general.outputdirectory, sample.name))
+        sample.commands.ipcress = 'ipcress -i {pf} -P -m {mismatches} -s {fasta} > {report}' \
+            .format(pf=formattedprimers,
+                    mismatches=mismatches,
+                    fasta=sample.general.bestassemblyfile,
+                    report=sample[analysistype].report)
         if sample.general.bestassemblyfile != 'NA':
-            setattr(sample, analysistype, GenObject())
-            # Get the primers ready
-            sample[analysistype].primers = formattedprimers
-            sample[analysistype].report = '{of}.txt' \
-                .format(of=os.path.join(sample.general.outputdirectory, sample.name))
-            sample.commands.ipcress = 'ipcress -i {pf} -P -m {mismatches} -s {fasta} > {report}' \
-                .format(pf=formattedprimers,
-                        mismatches=mismatches,
-                        fasta=sample.general.bestassemblyfile,
-                        report=sample[analysistype].report)
             ipcress_queue.put(sample)
     # Join the threads
     ipcress_queue.join()
@@ -131,164 +131,165 @@ def ipcress_parse(metadata, analysistype):
     for sample in metadata:
         # Initialise the results GenObject
         sample[analysistype].results = GenObject()
-        # Open the output file
-        with open(sample[analysistype].report, 'r') as ipcress_report:
-            # Initialise the experiment name
-            experiment = str()
-            # The output will be multiple blocks starting with 'Ipcress result' e.g.
-            '''
-            Ipcress result
-            --------------
-             Experiment: ES10
-                Primers: A B
-                Target: CP022407.1:filter(unmasked) Escherichia coli O121:H19 strain 16-9255 chromosome, complete genome
-                Matches: 21/21 19/19
-                Product: 103 bp (range 0-1500)
-            Result type: forward
+        if sample.general.bestassemblyfile != 'NA':
+            # Open the output file
+            with open(sample[analysistype].report, 'r') as ipcress_report:
+                # Initialise the experiment name
+                experiment = str()
+                # The output will be multiple blocks starting with 'Ipcress result' e.g.
+                '''
+                Ipcress result
+                --------------
+                 Experiment: ES10
+                    Primers: A B
+                    Target: CP022407.1:filter(unmasked) Escherichia coli O121:H19 strain 16-9255 chromosome, complete genome
+                    Matches: 21/21 19/19
+                    Product: 103 bp (range 0-1500)
+                Result type: forward
             
-            ...GGAAAGAATACTGGACCAGTC............................. # forward
-               |||||||||||||||||||||-->
-            5'-GGAAAGAATACTGGACCAGTC-3' 3'-GGTCATGGACACTTAGTCC-5' # primers
-                                        <--|||||||||||||||||||
-            ...............................GGTCATGGACACTTAGTCC... # revcomp
-            --
-            ipcress: CP022407.1:filter(unmasked) ES10 103 A 5388922 0 B 5389006 0 forward
-            >ES10_product_1 seq CP022407.1:filter(unmasked) start 5388922 length 103
-            GGAAAGAATACTGGACCAGTCGCTGGAATCTGCAACCGTTACTGCAAAGTGCTCAGTTGACAGGAATGAC
-            TGTCACAATCAAATCCAGTACCTGTGAATCAGG
-            '''
-            for line in ipcress_report:
-                # Allow for multiple experiments with the same name by appending an iterator to the end e.g. ES10_0
-                iterator = 0
-                # Find the 'Experiment' line e.g. Experiment: ES10
-                if 'Experiment:' in line:
-                    # Extract the experiment name e.g. ES10 and append the iterator
-                    experiment = line.split()[-1].rstrip() + f'_{iterator}'
-                    # Determine if the current experiment name has been initialised in the GenObject
-                    try:
-                        # While the experiment attribute exists, iterate through the experiment names
-                        while sample[analysistype].results[experiment]:
-                            # Increase the iterator
-                            iterator += 1
-                            # Recreate the experiment name
-                            experiment = line.split()[-1].rstrip() + f'_{iterator}'
-                        # Create the experiment name GenObject
-                        sample[analysistype].results[experiment] = GenObject()
-                    # Otherwise, the GenObject has not been initialise yet
-                    except AttributeError:
-                        sample[analysistype].results[experiment] = GenObject()
-                if 'Target:' in line:
-                    contig = line.split('Target:')[-1].split()[0].replace(':filter(unmasked)', '')
-                    try:
-                        sample[analysistype].results[experiment][contig].contig = contig
-                    except AttributeError:
-                        sample[analysistype].results[experiment][contig] = GenObject()
-                        sample[analysistype].results[experiment][contig].contig = contig
-                # Determine if the primers annealed to the forward or the reverse complement strand
-                # e.g. Result type: forward
-                if 'Result type:' in line:
-                    # Set the boolean appropriately
-                    if 'revcomp' in line:
-                        direction = False
-                    else:
-                        direction = True
-                # Lines with the query sequence start with '...'
-                if line.startswith('...'):
-                    # The top query sequence only has three periods
-                    # e.g. ...GGAAAGAATACTGGACCAGTC............................. # forward
-                    if not line.startswith('....'):
-                        # If forward, populate the forward_query attribute with the cleaned line
-                        if direction:
-                            sample[analysistype].results[experiment][contig].forward_query = line.replace('.', '') \
-                                .replace(' # forward\n', '')
-                        # Reverse
+                ...GGAAAGAATACTGGACCAGTC............................. # forward
+                   |||||||||||||||||||||-->
+                5'-GGAAAGAATACTGGACCAGTC-3' 3'-GGTCATGGACACTTAGTCC-5' # primers
+                                            <--|||||||||||||||||||
+                ...............................GGTCATGGACACTTAGTCC... # revcomp
+                --
+                ipcress: CP022407.1:filter(unmasked) ES10 103 A 5388922 0 B 5389006 0 forward
+                >ES10_product_1 seq CP022407.1:filter(unmasked) start 5388922 length 103
+                GGAAAGAATACTGGACCAGTCGCTGGAATCTGCAACCGTTACTGCAAAGTGCTCAGTTGACAGGAATGAC
+                TGTCACAATCAAATCCAGTACCTGTGAATCAGG
+                '''
+                for line in ipcress_report:
+                    # Allow for multiple experiments with the same name by appending an iterator to the end e.g. ES10_0
+                    iterator = 0
+                    # Find the 'Experiment' line e.g. Experiment: ES10
+                    if 'Experiment:' in line:
+                        # Extract the experiment name e.g. ES10 and append the iterator
+                        experiment = line.split()[-1].rstrip() + f'_{iterator}'
+                        # Determine if the current experiment name has been initialised in the GenObject
+                        try:
+                            # While the experiment attribute exists, iterate through the experiment names
+                            while sample[analysistype].results[experiment]:
+                                # Increase the iterator
+                                iterator += 1
+                                # Recreate the experiment name
+                                experiment = line.split()[-1].rstrip() + f'_{iterator}'
+                            # Create the experiment name GenObject
+                            sample[analysistype].results[experiment] = GenObject()
+                        # Otherwise, the GenObject has not been initialise yet
+                        except AttributeError:
+                            sample[analysistype].results[experiment] = GenObject()
+                    if 'Target:' in line:
+                        contig = line.split('Target:')[-1].split()[0].replace(':filter(unmasked)', '')
+                        try:
+                            sample[analysistype].results[experiment][contig].contig = contig
+                        except AttributeError:
+                            sample[analysistype].results[experiment][contig] = GenObject()
+                            sample[analysistype].results[experiment][contig].contig = contig
+                    # Determine if the primers annealed to the forward or the reverse complement strand
+                    # e.g. Result type: forward
+                    if 'Result type:' in line:
+                        # Set the boolean appropriately
+                        if 'revcomp' in line:
+                            direction = False
                         else:
-                            sample[analysistype].results[experiment][contig].reverse_query = \
-                                line.replace('.', '').replace(' # forward\n', '')
-                    # The bottom query sequence has many periods
-                    # e.g. ...............................GGTCATGGACACTTAGTCC... # revcomp
-                    else:
-                        # Reverse
-                        if direction:
-                            sample[analysistype].results[experiment][contig].reverse_query = \
-                                revcomp(line.replace('.', '').replace(' # revcomp\n', ''))
-                        # Forward
+                            direction = True
+                    # Lines with the query sequence start with '...'
+                    if line.startswith('...'):
+                        # The top query sequence only has three periods
+                        # e.g. ...GGAAAGAATACTGGACCAGTC............................. # forward
+                        if not line.startswith('....'):
+                            # If forward, populate the forward_query attribute with the cleaned line
+                            if direction:
+                                sample[analysistype].results[experiment][contig].forward_query = line.replace('.', '') \
+                                    .replace(' # forward\n', '')
+                            # Reverse
+                            else:
+                                sample[analysistype].results[experiment][contig].reverse_query = \
+                                    line.replace('.', '').replace(' # forward\n', '')
+                        # The bottom query sequence has many periods
+                        # e.g. ...............................GGTCATGGACACTTAGTCC... # revcomp
                         else:
-                            sample[analysistype].results[experiment][contig].forward_query = \
-                                revcomp(seq_string=line.replace('.', '').replace(' # revcomp\n', ''))
-                # The line with the primers starts with 5'
-                # e.g. 5'-GGAAAGAATACTGGACCAGTC-3' 3'-GGTCATGGACACTTAGTCC-5' # primers
-                if line.startswith('5\''):
-                    # Forward reverse
-                    if direction:
-                        # Split the cleaned line to create the forward_ref and reverse_ref attributes
-                        sample[analysistype].results[experiment][contig].forward_ref, \
+                            # Reverse
+                            if direction:
+                                sample[analysistype].results[experiment][contig].reverse_query = \
+                                    revcomp(line.replace('.', '').replace(' # revcomp\n', ''))
+                            # Forward
+                            else:
+                                sample[analysistype].results[experiment][contig].forward_query = \
+                                    revcomp(seq_string=line.replace('.', '').replace(' # revcomp\n', ''))
+                    # The line with the primers starts with 5'
+                    # e.g. 5'-GGAAAGAATACTGGACCAGTC-3' 3'-GGTCATGGACACTTAGTCC-5' # primers
+                    if line.startswith('5\''):
+                        # Forward reverse
+                        if direction:
+                            # Split the cleaned line to create the forward_ref and reverse_ref attributes
+                            sample[analysistype].results[experiment][contig].forward_ref, \
+                                sample[analysistype].results[experiment][contig].reverse_ref = \
+                                line.replace('5', '').replace('\'', '').replace('3', '').replace('-', '') \
+                                    .replace(' # primers\n', '').split()
                             sample[analysistype].results[experiment][contig].reverse_ref = \
-                            line.replace('5', '').replace('\'', '').replace('3', '').replace('-', '') \
-                                .replace(' # primers\n', '').split()
-                        sample[analysistype].results[experiment][contig].reverse_ref = \
-                            revcomp(seq_string=sample[analysistype].results[experiment][contig].reverse_ref)
-                    # Reverse forward
-                    else:
-                        reverse_ref, forward_ref = \
-                            line.replace('5', '').replace('\'', '').replace('3', '').replace('-', '') \
-                                .replace(' # primers\n', '').split()
-                        sample[analysistype].results[experiment][contig].reverse_ref = reverse_ref
-                        sample[analysistype].results[experiment][contig].forward_ref = \
-                            revcomp(seq_string=forward_ref)
-                # Lines starting with 'ipcress:' contain results in an easily parsable format
-                # e.g. ipcress: CP022407.1:filter(unmasked) ES10 103 A 5388922 0 B 5389006 0 forward
-                # The eleven fields are contig (CP022407.1:filter(unmasked)), primer set (ES10), amplicon length (103),
-                # forward primer (A) - affected by reverse complement, position of forward primer (5388922), mismatches
-                # in forward primer (0), reverse primer (B), position of reverse primer (5389006), mismatches in reverse
-                # primer, analysis direction (forward) - will be 'revcomp' for experiments in reverse complement
-                if line.startswith('ipcress:'):
-                    # Forward
-                    if direction:
-                        ipcress_str, \
-                            sample[analysistype].results[experiment][contig].contig, \
-                            sample[analysistype].results[experiment][contig].primer_set, \
-                            sample[analysistype].results[experiment][contig].amplicon_length, \
-                            sample[analysistype].results[experiment][contig].forward_primer, \
-                            sample[analysistype].results[experiment][contig].forward_pos, \
-                            sample[analysistype].results[experiment][contig].forward_mismatch, \
-                            sample[analysistype].results[experiment][contig].reverse_primer, \
-                            sample[analysistype].results[experiment][contig].reverse_pos, \
-                            sample[analysistype].results[experiment][contig].reverse_mismatch, \
-                            sample[analysistype].results[experiment][contig].direction = line.rstrip().split()
-                        # Clean up the name of the contig e.g. CP022407.1:filter(unmasked) becomes CP022407.1:
-                        sample[analysistype].results[experiment][contig].contig = \
-                            sample[analysistype].results[experiment][contig].contig.replace(':filter(unmasked)', '')
-                    # Reverse complement
-                    else:
-                        ipcress_str, \
-                            sample[analysistype].results[experiment][contig].contig, \
-                            sample[analysistype].results[experiment][contig].primer_set, \
-                            sample[analysistype].results[experiment][contig].amplicon_length, \
-                            sample[analysistype].results[experiment][contig].reverse_primer, \
-                            sample[analysistype].results[experiment][contig].reverse_pos, \
-                            sample[analysistype].results[experiment][contig].reverse_mismatch, \
-                            sample[analysistype].results[experiment][contig].forward_primer, \
-                            sample[analysistype].results[experiment][contig].forward_pos, \
-                            sample[analysistype].results[experiment][contig].forward_mismatch, \
-                            sample[analysistype].results[experiment][contig].direction = line.rstrip().split()
-                        # Clean up the name of the contig e.g. CP022407.1:filter(unmasked) becomes CP022407.1:
-                        sample[analysistype].results[experiment][contig].contig = \
-                            sample[analysistype].results[experiment][contig].contig.replace(':filter(unmasked)', '')
-                # Find the extracted amplicon header
-                # e.g. >ES10_product_1 seq CP022407.1:filter(unmasked) start 5388922 length 103
-                if line.startswith('>'):
-                    # Set the header attribute with the with cleaned the header string
-                    sample[analysistype].results[experiment][contig].header = \
-                        line.rstrip().lstrip('>').replace(':filter(unmasked)', '')
-                    # Initialise a string to store the amplicon sequence
-                    sample[analysistype].results[experiment][contig].sequence = str()
-                    for subline in ipcress_report:
-                        # There's an empty line after the sequence - break when it is encountered
-                        if subline == '\n' or subline.startswith('--') or not subline:
-                            break
-                        # Add the sequence data to the growing string
-                        sample[analysistype].results[experiment][contig].sequence += subline.rstrip()
+                                revcomp(seq_string=sample[analysistype].results[experiment][contig].reverse_ref)
+                        # Reverse forward
+                        else:
+                            reverse_ref, forward_ref = \
+                                line.replace('5', '').replace('\'', '').replace('3', '').replace('-', '') \
+                                    .replace(' # primers\n', '').split()
+                            sample[analysistype].results[experiment][contig].reverse_ref = reverse_ref
+                            sample[analysistype].results[experiment][contig].forward_ref = \
+                                revcomp(seq_string=forward_ref)
+                    # Lines starting with 'ipcress:' contain results in an easily parsable format
+                    # e.g. ipcress: CP022407.1:filter(unmasked) ES10 103 A 5388922 0 B 5389006 0 forward
+                    # The eleven fields are contig (CP022407.1:filter(unmasked)), primer set (ES10), amplicon length (103),
+                    # forward primer (A) - affected by reverse complement, position of forward primer (5388922), mismatches
+                    # in forward primer (0), reverse primer (B), position of reverse primer (5389006), mismatches in reverse
+                    # primer, analysis direction (forward) - will be 'revcomp' for experiments in reverse complement
+                    if line.startswith('ipcress:'):
+                        # Forward
+                        if direction:
+                            ipcress_str, \
+                                sample[analysistype].results[experiment][contig].contig, \
+                                sample[analysistype].results[experiment][contig].primer_set, \
+                                sample[analysistype].results[experiment][contig].amplicon_length, \
+                                sample[analysistype].results[experiment][contig].forward_primer, \
+                                sample[analysistype].results[experiment][contig].forward_pos, \
+                                sample[analysistype].results[experiment][contig].forward_mismatch, \
+                                sample[analysistype].results[experiment][contig].reverse_primer, \
+                                sample[analysistype].results[experiment][contig].reverse_pos, \
+                                sample[analysistype].results[experiment][contig].reverse_mismatch, \
+                                sample[analysistype].results[experiment][contig].direction = line.rstrip().split()
+                            # Clean up the name of the contig e.g. CP022407.1:filter(unmasked) becomes CP022407.1:
+                            sample[analysistype].results[experiment][contig].contig = \
+                                sample[analysistype].results[experiment][contig].contig.replace(':filter(unmasked)', '')
+                        # Reverse complement
+                        else:
+                            ipcress_str, \
+                                sample[analysistype].results[experiment][contig].contig, \
+                                sample[analysistype].results[experiment][contig].primer_set, \
+                                sample[analysistype].results[experiment][contig].amplicon_length, \
+                                sample[analysistype].results[experiment][contig].reverse_primer, \
+                                sample[analysistype].results[experiment][contig].reverse_pos, \
+                                sample[analysistype].results[experiment][contig].reverse_mismatch, \
+                                sample[analysistype].results[experiment][contig].forward_primer, \
+                                sample[analysistype].results[experiment][contig].forward_pos, \
+                                sample[analysistype].results[experiment][contig].forward_mismatch, \
+                                sample[analysistype].results[experiment][contig].direction = line.rstrip().split()
+                            # Clean up the name of the contig e.g. CP022407.1:filter(unmasked) becomes CP022407.1:
+                            sample[analysistype].results[experiment][contig].contig = \
+                                sample[analysistype].results[experiment][contig].contig.replace(':filter(unmasked)', '')
+                    # Find the extracted amplicon header
+                    # e.g. >ES10_product_1 seq CP022407.1:filter(unmasked) start 5388922 length 103
+                    if line.startswith('>'):
+                        # Set the header attribute with the with cleaned the header string
+                        sample[analysistype].results[experiment][contig].header = \
+                            line.rstrip().lstrip('>').replace(':filter(unmasked)', '')
+                        # Initialise a string to store the amplicon sequence
+                        sample[analysistype].results[experiment][contig].sequence = str()
+                        for subline in ipcress_report:
+                            # There's an empty line after the sequence - break when it is encountered
+                            if subline == '\n' or subline.startswith('--') or not subline:
+                                break
+                            # Add the sequence data to the growing string
+                            sample[analysistype].results[experiment][contig].sequence += subline.rstrip()
     return metadata
 
 
@@ -572,16 +573,17 @@ def run_blast(metadata, analysistype, formattedprimers, blastheader, threads):
                                            out=sample[analysistype].blastresults)
             # Save the blast command in the metadata
             sample[analysistype].blastcommand = str(blastn)
-            # Run the blastn command
-            blastn()
-            # Add a header to the report
-            with open(sample[analysistype].blastresults, 'r+') as f:
-                # Read in the information from the blastresults file
-                content = f.read()
-                # Go back to the start of the file
-                f.seek(0, 0)
-                # Write the formatted header (\n) followed by the content to the file
-                f.write('\t'.join(blastheader) + '\n' + content)
+            if sample.general.bestassemblyfile != 'NA':
+                # Run the blastn command
+                blastn()
+                # Add a header to the report
+                with open(sample[analysistype].blastresults, 'r+') as f:
+                    # Read in the information from the blastresults file
+                    content = f.read()
+                    # Go back to the start of the file
+                    f.seek(0, 0)
+                    # Write the formatted header (\n) followed by the content to the file
+                    f.write('\t'.join(blastheader) + '\n' + content)
     return metadata
 
 
