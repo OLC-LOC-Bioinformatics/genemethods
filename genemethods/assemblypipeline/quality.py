@@ -337,7 +337,7 @@ class Quality(object):
         # Add all the trimmed files to the metadata
         logging.info('Fastq files trimmed')
 
-    def contamination_finder(self, input_path=None, report_path=None, debug=False):
+    def contamination_finder(self, input_path=None, report_path=None, debug=False, threads=12):
         """
         Helper function to get confindr integrated into the assembly pipeline
         """
@@ -356,11 +356,12 @@ class Quality(object):
         if not os.path.isfile(confindr_report):
             make_path(reportpath)
             # Run confindr
-            systemcall = 'confindr.py -i {input_dir} -o {output_dir} -d {database_dir} -t 12 --rmlst -bf 0.05 ' \
+            systemcall = 'confindr.py -i {input_dir} -o {output_dir} -d {database_dir} -t {threads} --rmlst -bf 0.05 ' \
                          '--cross_details'\
                 .format(input_dir=input_dir,
                         output_dir=os.path.join(input_dir, 'confindr'),
-                        database_dir=os.path.join(self.reffilepath, 'ConFindr'))
+                        database_dir=os.path.join(self.reffilepath, 'ConFindr'),
+                        threads=threads)
             # Keep the files if the debug option is specified
             if debug:
                 systemcall += ' -k'
