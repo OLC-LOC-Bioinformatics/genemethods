@@ -129,9 +129,9 @@ def ipcress_parse(metadata, analysistype):
     """
     logging.info('Parsing ipcress outputs')
     for sample in metadata:
-        # Initialise the results GenObject
-        sample[analysistype].results = GenObject()
         if sample.general.bestassemblyfile != 'NA':
+            # Initialise the results GenObject
+            sample[analysistype].results = GenObject()
             # Open the output file
             with open(sample[analysistype].report, 'r') as ipcress_report:
                 # Initialise the experiment name
