@@ -142,7 +142,7 @@ def ipcress_parse(metadata, analysistype):
                 --------------
                  Experiment: ES10
                     Primers: A B
-                    Target: CP022407.1:filter(unmasked) Escherichia coli O121:H19 strain 16-9255 chromosome, complete genome
+                    Target: CP022407.1:filter(unmasked) E coli O121:H19 strain 16-9255 chromosome, complete genome
                     Matches: 21/21 19/19
                     Product: 103 bp (range 0-1500)
                 Result type: forward
@@ -239,9 +239,9 @@ def ipcress_parse(metadata, analysistype):
                                 revcomp(seq_string=forward_ref)
                     # Lines starting with 'ipcress:' contain results in an easily parsable format
                     # e.g. ipcress: CP022407.1:filter(unmasked) ES10 103 A 5388922 0 B 5389006 0 forward
-                    # The eleven fields are contig (CP022407.1:filter(unmasked)), primer set (ES10), amplicon length (103),
-                    # forward primer (A) - affected by reverse complement, position of forward primer (5388922), mismatches
-                    # in forward primer (0), reverse primer (B), position of reverse primer (5389006), mismatches in reverse
+                    # The 11 fields are contig (CP022407.1:filter(unmasked)), primer set (ES10), amplicon length (103),
+                    # forward primer (A) - affected by reverse complement, pos of forward primer (5388922), mismatches
+                    # in forward primer (0), reverse primer (B), pos of reverse primer (5389006), mismatches in reverse
                     # primer, analysis direction (forward) - will be 'revcomp' for experiments in reverse complement
                     if line.startswith('ipcress:'):
                         # Forward
@@ -1067,6 +1067,36 @@ def best_matcher(overlaps, amplicon_range, total_mismatch, experiment, contig):
     return overlaps
 
 
+def metadata_clean(metadata, analysistype):
+    """
+    Clean attributes from sample that will cause issues during printing of metadata to file with json.dump
+    :param metadata: List of metadata objects for all samples
+    :param analysistype: String of current analysis type
+    :return: metadata: List of cleaned metadata objects
+    """
+    for sample in metadata:
+        # Iterate through all the ipcress experiments
+        for experiment in sample[analysistype].results.datastore:
+            for contig in sample[analysistype].results[experiment].datastore:
+                # Clean any attributes with type range
+                try:
+                    sample[analysistype].results[experiment][contig].amplicon_range \
+                        = list(sample[analysistype].results[experiment][contig].amplicon_range)
+                except AttributeError:
+                    pass
+                try:
+                    sample[analysistype].results[experiment][contig].reverse_range \
+                        = list(sample[analysistype].results[experiment][contig].reverse_range)
+                except AttributeError:
+                    pass
+                try:
+                    sample[analysistype].results[experiment][contig].forward_range \
+                        = list(sample[analysistype].results[experiment][contig].forward_range)
+                except AttributeError:
+                    pass
+    return metadata
+
+
 class VtyperIP(object):
 
     def vtyper(self):
@@ -1121,6 +1151,8 @@ class VtyperIP(object):
                                              analysistype=self.analysistype)
         self.toxin_profile()
         self.vtyper_report()
+        self.metadata = metadata_clean(metadata=self.metadata,
+                                       analysistype=self.analysistype)
 
     def toxin_profile(self):
         """
@@ -1255,6 +1287,8 @@ class CustomIP(object):
             amplicon_write(metadata=self.metadata,
                            analysistype=self.analysistype,
                            reportpath=self.reportpath)
+        self.metadata = metadata_clean(metadata=self.metadata,
+                                       analysistype=self.analysistype)
 
     def ipcress_report(self):
         logging.info('Creating summary report')
