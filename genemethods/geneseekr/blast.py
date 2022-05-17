@@ -185,7 +185,11 @@ class BLAST(object):
                     sample[self.analysistype].profile = glob(os.path.join(sample[self.analysistype].targetpath,
                                                                           '*.txt'))[0]
                 except IndexError:
-                    sample[self.analysistype].profile = 'ND'
+                    try:
+                        sample[self.analysistype].profile = \
+                            glob(os.path.join(sample[self.analysistype].targetpath, 'profiles_csv'))[0]
+                    except IndexError:
+                        sample[self.analysistype].profile = 'ND'
             # Create the typing object
             typing = MLST(args=self,
                           pipelinecommit='',
