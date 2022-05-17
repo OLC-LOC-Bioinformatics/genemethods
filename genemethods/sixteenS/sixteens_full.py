@@ -388,9 +388,10 @@ class SixteenS(object):
         with open(self.sixteens_report, 'w') as report:
             with open(os.path.join(self.reportpath, self.analysistype + '_sequences.fa'), 'w') as sequences:
                 for sample in self.runmetadata.samples:
-                    # Initialise
+                    # Initialise necessary attributes
                     sample[self.analysistype].sixteens_match = 'ND'
                     sample[self.analysistype].species = 'ND'
+                    sample[self.analysistype].percent_id = 'ND'
                     try:
                         # Select the best hit of all the full-length 16S genes mapped - for 16S use the hit with the
                         # fewest number of SNPs rather than the highest percent identity
@@ -408,8 +409,6 @@ class SixteenS(object):
                                     sample[self.analysistype].sixteens_match.split('|')[-1].split()[1]
                         # Add the sample name to the data string
                         data += sample.name + ','
-                        # Initialise an attribute to store the percent ID of the match
-                        sample[self.analysistype].percent_id = 'ND'
                         # Find the record that matches the best hit, and extract the necessary values to be placed
                         # in the data string
                         for name, identity in sample[self.analysistype].results.items():
@@ -459,6 +458,7 @@ class SixteenS(object):
                         sample[self.analysistype].avgdepth = dict()
                         sample[self.analysistype].avgdepth[sixteens] = fold_coverage.rstrip()
                         sample[self.analysistype].sixteens_match = sixteens
+                        sample[self.analysistype].percent_id = pid
                         if genus != 'NA':
                             sample[self.analysistype].results = {sixteens: pid}
                         else:
