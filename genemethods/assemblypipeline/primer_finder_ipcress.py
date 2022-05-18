@@ -1170,21 +1170,22 @@ class VtyperIP(object):
         Create a sample-specific list of all toxins
         """
         for sample in self.metadata:
-            sample[self.analysistype].toxinprofile = 'ND'
-            # Create a set to store all the unique results
-            toxin_set = set()
-            for contig, amplicon_dict in sample[self.analysistype].best_hits.items():
-                # Iterate over all the best primer hits for a range
-                for amplicon_range, hit_dict in amplicon_dict.items():
-                    # Remove the primer numbering information, and add the cleaned toxin to the set
-                    # e.g. vtx1a_0_0;vtx1c_0_0;vtx2d_1_2;vtx2d_1_3 becomes {vtx1a, vtx1c, vtx2d}
-                    if not os.path.isfile(sample[self.analysistype].blastresults):
-                        toxin_set.add(hit_dict['experiment'].split('_')[0])
-                    # Add an asterisk if the hit was derived from BLAST-based analyses
-                    else:
-                        toxin_set.add(hit_dict['experiment'].split('_')[0] + '*')
-                # Create a string of the entries in the sorted list of toxins joined with ";"
-                sample[self.analysistype].toxinprofile = ";".join(sorted(list(toxin_set))) if toxin_set else 'ND'
+            if sample.general.bestassemblyfile != 'NA':
+                sample[self.analysistype].toxinprofile = 'ND'
+                # Create a set to store all the unique results
+                toxin_set = set()
+                for contig, amplicon_dict in sample[self.analysistype].best_hits.items():
+                    # Iterate over all the best primer hits for a range
+                    for amplicon_range, hit_dict in amplicon_dict.items():
+                        # Remove the primer numbering information, and add the cleaned toxin to the set
+                        # e.g. vtx1a_0_0;vtx1c_0_0;vtx2d_1_2;vtx2d_1_3 becomes {vtx1a, vtx1c, vtx2d}
+                        if not os.path.isfile(sample[self.analysistype].blastresults):
+                            toxin_set.add(hit_dict['experiment'].split('_')[0])
+                        # Add an asterisk if the hit was derived from BLAST-based analyses
+                        else:
+                            toxin_set.add(hit_dict['experiment'].split('_')[0] + '*')
+                    # Create a string of the entries in the sorted list of toxins joined with ";"
+                    sample[self.analysistype].toxinprofile = ";".join(sorted(list(toxin_set))) if toxin_set else 'ND'
 
     def vtyper_report(self):
         """
@@ -1194,8 +1195,9 @@ class VtyperIP(object):
         with open(os.path.join(self.reportpath, '{at}.csv'.format(at=self.analysistype)), 'w') as report:
             data = 'Strain,ToxinProfile\n'
             for sample in self.metadata:
-                data += '{sn},{tp}\n'.format(sn=sample.name,
-                                             tp=sample[self.analysistype].toxinprofile)
+                if sample.general.bestassemblyfile != 'NA':
+                    data += '{sn},{tp}\n'.format(sn=sample.name,
+                                                 tp=sample[self.analysistype].toxinprofile)
             # Write the data to the report
             report.write(data)
 
@@ -1308,67 +1310,68 @@ class CustomIP(object):
                    'ForwardMismatchDetails,ForwardLength,ReverseMismatches,ReverseMismatchDetails,ReverseLength,' \
                    'ForwardPrimer,ForwardQuery,ReversePrimer,ReverseQuery\n'
             for sample in self.metadata:
-                results = False
-                for experiment in sample[self.analysistype].results.datastore:
-                    for contig in sample[self.analysistype].results[experiment].datastore:
-                        results = True
-                        location = str()
-                        # Ensure that the .blastresults attribute has been created
-                        sample[self.analysistype].blastresults = '{of}_blast_results.tsv' \
-                            .format(of=os.path.join(sample.general.outputdirectory, sample.name))
-                        if not os.path.isfile(sample[self.analysistype].blastresults):
-                            if sample[self.analysistype].results[experiment][contig].direction == 'forward':
-                                location = '{forward}-{reverse}'.format(
-                                    forward=sample[self.analysistype].results[experiment][contig].forward_pos,
-                                    reverse=str(int(sample[self.analysistype].results[experiment][contig].reverse_pos) +
-                                                len(sample[self.analysistype].results[experiment][contig]
-                                                    .reverse_query))
-                                )
+                if sample.general.bestassemblyfile != 'NA':
+                    results = False
+                    for experiment in sample[self.analysistype].results.datastore:
+                        for contig in sample[self.analysistype].results[experiment].datastore:
+                            results = True
+                            location = str()
+                            # Ensure that the .blastresults attribute has been created
+                            sample[self.analysistype].blastresults = '{of}_blast_results.tsv' \
+                                .format(of=os.path.join(sample.general.outputdirectory, sample.name))
+                            if not os.path.isfile(sample[self.analysistype].blastresults):
+                                if sample[self.analysistype].results[experiment][contig].direction == 'forward':
+                                    location = '{forward}-{reverse}'.format(
+                                        forward=sample[self.analysistype].results[experiment][contig].forward_pos,
+                                        reverse=str(int(sample[self.analysistype].results[experiment][contig].reverse_pos) +
+                                                    len(sample[self.analysistype].results[experiment][contig]
+                                                        .reverse_query))
+                                    )
+                                else:
+                                    location = '{reverse}-{forward}'.format(
+                                        reverse=sample[self.analysistype].results[experiment][contig].reverse_pos,
+                                        forward=str(int(sample[self.analysistype].results[experiment][contig].forward_pos) +
+                                                    len(sample[self.analysistype].results[experiment][contig]
+                                                        .forward_query))
+                                    )
                             else:
-                                location = '{reverse}-{forward}'.format(
-                                    reverse=sample[self.analysistype].results[experiment][contig].reverse_pos,
-                                    forward=str(int(sample[self.analysistype].results[experiment][contig].forward_pos) +
-                                                len(sample[self.analysistype].results[experiment][contig]
-                                                    .forward_query))
-                                )
-                        else:
-                            if sample[self.analysistype].results[experiment][contig].direction == 'forward':
-                                if location:
-                                    location += ';'
-                                location += 'forward_{forward}-{reverse}'.format(
-                                    forward=sample[self.analysistype].results[experiment][contig].forward_range[0],
-                                    reverse=sample[self.analysistype].results[experiment][contig].forward_range[-1]
-                                )
-                            else:
-                                if location:
-                                    location += ';'
-                                location += 'reverse_{forward}-{reverse}'.format(
-                                    forward=sample[self.analysistype].results[experiment][contig].reverse_range[0],
-                                    reverse=sample[self.analysistype].results[experiment][contig].reverse_range[-1]
-                                )
-                        data += \
-                            '{sn},{gene},{contig},{loc},{amplicon_size},{orientation},{f_mm},{f_md},{f_l},{r_mm},' \
-                            '{r_md},{r_l},{fp},{fq},{rp},{rq}\n' \
-                            .format(sn=sample.name,
-                                    gene=sample[self.analysistype].results[experiment][contig].primer_set,
-                                    contig=sample[self.analysistype].results[experiment][contig].contig.replace(
-                                        '(unmasked)', ''),
-                                    loc=location,
-                                    amplicon_size=sample[self.analysistype].results[experiment][contig].amplicon_length,
-                                    orientation=sample[self.analysistype].results[experiment][contig].direction,
-                                    f_mm=sample[self.analysistype].results[experiment][contig].forward_mismatch,
-                                    f_md=sample[self.analysistype].results[experiment][contig].forward_mismatch_details,
-                                    f_l=len(sample[self.analysistype].results[experiment][contig].forward_ref),
-                                    r_mm=sample[self.analysistype].results[experiment][contig].reverse_mismatch,
-                                    r_md=sample[self.analysistype].results[experiment][contig].reverse_mismatch_details,
-                                    r_l=len(sample[self.analysistype].results[experiment][contig].reverse_ref),
-                                    fp=sample[self.analysistype].results[experiment][contig].forward_ref,
-                                    fq=sample[self.analysistype].results[experiment][contig].forward_query,
-                                    rp=sample[self.analysistype].results[experiment][contig].reverse_ref,
-                                    rq=sample[self.analysistype].results[experiment][contig].reverse_query)
-                    if not results:
-                        # If there were no amplicons, add the sample name and nothing else
-                        data += '{sn}\n'.format(sn=sample.name)
+                                if sample[self.analysistype].results[experiment][contig].direction == 'forward':
+                                    if location:
+                                        location += ';'
+                                    location += 'forward_{forward}-{reverse}'.format(
+                                        forward=sample[self.analysistype].results[experiment][contig].forward_range[0],
+                                        reverse=sample[self.analysistype].results[experiment][contig].forward_range[-1]
+                                    )
+                                else:
+                                    if location:
+                                        location += ';'
+                                    location += 'reverse_{forward}-{reverse}'.format(
+                                        forward=sample[self.analysistype].results[experiment][contig].reverse_range[0],
+                                        reverse=sample[self.analysistype].results[experiment][contig].reverse_range[-1]
+                                    )
+                            data += \
+                                '{sn},{gene},{contig},{loc},{amplicon_size},{orientation},{f_mm},{f_md},{f_l},{r_mm},' \
+                                '{r_md},{r_l},{fp},{fq},{rp},{rq}\n' \
+                                .format(sn=sample.name,
+                                        gene=sample[self.analysistype].results[experiment][contig].primer_set,
+                                        contig=sample[self.analysistype].results[experiment][contig].contig.replace(
+                                            '(unmasked)', ''),
+                                        loc=location,
+                                        amplicon_size=sample[self.analysistype].results[experiment][contig].amplicon_length,
+                                        orientation=sample[self.analysistype].results[experiment][contig].direction,
+                                        f_mm=sample[self.analysistype].results[experiment][contig].forward_mismatch,
+                                        f_md=sample[self.analysistype].results[experiment][contig].forward_mismatch_details,
+                                        f_l=len(sample[self.analysistype].results[experiment][contig].forward_ref),
+                                        r_mm=sample[self.analysistype].results[experiment][contig].reverse_mismatch,
+                                        r_md=sample[self.analysistype].results[experiment][contig].reverse_mismatch_details,
+                                        r_l=len(sample[self.analysistype].results[experiment][contig].reverse_ref),
+                                        fp=sample[self.analysistype].results[experiment][contig].forward_ref,
+                                        fq=sample[self.analysistype].results[experiment][contig].forward_query,
+                                        rp=sample[self.analysistype].results[experiment][contig].reverse_ref,
+                                        rq=sample[self.analysistype].results[experiment][contig].reverse_query)
+                        if not results:
+                            # If there were no amplicons, add the sample name and nothing else
+                            data += '{sn}\n'.format(sn=sample.name)
             report.write(data)
 
     def __init__(self, metadataobject, sequencepath, reportpath, primerfile, min_amplicon_size, max_amplicon_size,
