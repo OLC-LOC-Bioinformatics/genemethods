@@ -3,7 +3,6 @@ from olctools.accessoryFunctions.accessoryFunctions import GenObject, make_path,
     write_to_logfile
 from argparse import ArgumentParser
 from click import progressbar
-from queue import Queue
 import multiprocessing
 from glob import glob
 import logging
@@ -71,10 +70,8 @@ class Sistr(object):
                                                  sampleerr=sample.general.logerr,
                                                  analysislog=sample[self.analysistype].logout,
                                                  analysiserr=sample[self.analysistype].logerr)
-                            self.queue.task_done()
                     except (ValueError, KeyError):
                         pass
-        self.queue.join()
 
     def report(self):
         """
@@ -132,7 +129,6 @@ class Sistr(object):
         make_path(self.reportdir)
         self.analysistype = analysistype
         # self.devnull = open(os.devnull, 'wb')
-        self.queue = Queue()
         self.headers = ['genome', 'cgmlst_distance', 'cgmlst_genome_match', 'cgmlst_matching_alleles', 'h1', 'h2',
                         'serogroup', 'serovar', 'serovar_antigen', 'serovar_cgmlst']
 
