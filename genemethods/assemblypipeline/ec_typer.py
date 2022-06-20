@@ -43,19 +43,22 @@ class ECTyper(object):
         Parse the report, and populate a dictionary with the extracted values
         """
         # Load the file into a dictionary using the csv library
-        csv_dict = csv.DictReader(open(self.report_final), delimiter='\t')
-        for line in csv_dict:
-            sample_name = line['Name']
-            if line['O-type'] == 'No serotyping-specific genes found':
-                self.nesteddictionary[sample_name] = {
-                    'o_type': 'ND',
-                    'h_type': 'ND'
-                }
-            else:
-                self.nesteddictionary[sample_name] = {
-                    'o_type': line['O-type'],
-                    'h_type': line['H-type']
-                }
+        try:
+            csv_dict = csv.DictReader(open(self.report_final), delimiter='\t')
+            for line in csv_dict:
+                sample_name = line['Name']
+                if line['O-type'] == 'No serotyping-specific genes found':
+                    self.nesteddictionary[sample_name] = {
+                        'o_type': 'ND',
+                        'h_type': 'ND'
+                    }
+                else:
+                    self.nesteddictionary[sample_name] = {
+                        'o_type': line['O-type'],
+                        'h_type': line['H-type']
+                    }
+        except FileNotFoundError:
+            pass
 
     def populate_metadata(self):
         """
