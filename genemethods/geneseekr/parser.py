@@ -105,9 +105,12 @@ class Parser(object):
                                                    metadata[self.analysistype].targets]
 
         if not metadata[self.analysistype].targetnames:
-            metadata[self.analysistype].targetnames = target_names(
-                sample=metadata,
-                analysistype=self.analysistype)
+            try:
+                metadata[self.analysistype].targetnames = target_names(
+                    sample=metadata,
+                    analysistype=self.analysistype)
+            except FileNotFoundError:
+                metadata[self.analysistype].combinedtargets = 'NA'
 
     def metadata_populate(self):
         """
