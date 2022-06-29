@@ -85,17 +85,17 @@ def ipcress_threads(metadata, analysistype, formattedprimers, mismatches, ipcres
     # Create the threads for the ePCR analysis
     logging.info('Running ipcress analyses')
     for sample in metadata:
+        setattr(sample, analysistype, GenObject())
+        # Get the primers ready
+        sample[analysistype].primers = formattedprimers
+        sample[analysistype].report = '{of}.txt' \
+            .format(of=os.path.join(sample.general.outputdirectory, sample.name))
+        sample.commands.ipcress = 'ipcress -i {pf} -P -m {mismatches} -s {fasta} > {report}' \
+            .format(pf=formattedprimers,
+                    mismatches=mismatches,
+                    fasta=sample.general.bestassemblyfile,
+                    report=sample[analysistype].report)
         if sample.general.bestassemblyfile != 'NA':
-            setattr(sample, analysistype, GenObject())
-            # Get the primers ready
-            sample[analysistype].primers = formattedprimers
-            sample[analysistype].report = '{of}.txt' \
-                .format(of=os.path.join(sample.general.outputdirectory, sample.name))
-            sample.commands.ipcress = 'ipcress -i {pf} -P -m {mismatches} -s {fasta} > {report}' \
-                .format(pf=formattedprimers,
-                        mismatches=mismatches,
-                        fasta=sample.general.bestassemblyfile,
-                        report=sample[analysistype].report)
             ipcress_queue.put(sample)
     # Join the threads
     ipcress_queue.join()
@@ -142,11 +142,11 @@ def ipcress_parse(metadata, analysistype):
                 --------------
                  Experiment: ES10
                     Primers: A B
-                    Target: CP022407.1:filter(unmasked) Escherichia coli O121:H19 strain 16-9255 chromosome, complete genome
+                    Target: CP022407.1:filter(unmasked) E coli O121:H19 strain 16-9255 chromosome, complete genome
                     Matches: 21/21 19/19
                     Product: 103 bp (range 0-1500)
                 Result type: forward
-            
+
                 ...GGAAAGAATACTGGACCAGTC............................. # forward
                    |||||||||||||||||||||-->
                 5'-GGAAAGAATACTGGACCAGTC-3' 3'-GGTCATGGACACTTAGTCC-5' # primers
@@ -239,9 +239,9 @@ def ipcress_parse(metadata, analysistype):
                                 revcomp(seq_string=forward_ref)
                     # Lines starting with 'ipcress:' contain results in an easily parsable format
                     # e.g. ipcress: CP022407.1:filter(unmasked) ES10 103 A 5388922 0 B 5389006 0 forward
-                    # The eleven fields are contig (CP022407.1:filter(unmasked)), primer set (ES10), amplicon length (103),
-                    # forward primer (A) - affected by reverse complement, position of forward primer (5388922), mismatches
-                    # in forward primer (0), reverse primer (B), position of reverse primer (5389006), mismatches in reverse
+                    # The 11 fields are contig (CP022407.1:filter(unmasked)), primer set (ES10), amplicon length (103),
+                    # forward primer (A) - affected by reverse complement, pos of forward primer (5388922), mismatches
+                    # in forward primer (0), reverse primer (B), pos of reverse primer (5389006), mismatches in reverse
                     # primer, analysis direction (forward) - will be 'revcomp' for experiments in reverse complement
                     if line.startswith('ipcress:'):
                         # Forward
@@ -435,7 +435,8 @@ def best_hit(metadata, analysistype, range_buffer=0):
                                         # from the current set
                                         if sample[analysistype].results[experiment][contig].total_mismatch < \
                                                 overlap_dict['mismatches']:
-                                            overlap_dict['mismatches'] = sample[analysistype].results[experiment][contig]. \
+                                            overlap_dict['mismatches'] = sample[analysistype].results[experiment][
+                                                contig]. \
                                                 total_mismatch
                                             overlap_dict['experiment'] = experiment
                                 # If the current range does not overlap with any previous primer sets, add this range and
@@ -484,6 +485,8 @@ def empty_results(metadata, analysistype):
             # Check to see if the results attribute is empty
             if not sample[analysistype].results.datastore:
                 empty = True
+        else:
+            empty = True
     return empty
 
 
@@ -577,16 +580,17 @@ def run_blast(metadata, analysistype, formattedprimers, blastheader, threads):
                                                out=sample[analysistype].blastresults)
                 # Save the blast command in the metadata
                 sample[analysistype].blastcommand = str(blastn)
-                # Run the blastn command
-                blastn()
-                # Add a header to the report
-                with open(sample[analysistype].blastresults, 'r+') as f:
-                    # Read in the information from the blastresults file
-                    content = f.read()
-                    # Go back to the start of the file
-                    f.seek(0, 0)
-                    # Write the formatted header (\n) followed by the content to the file
-                    f.write('\t'.join(blastheader) + '\n' + content)
+                if sample.general.bestassemblyfile != 'NA':
+                    # Run the blastn command
+                    blastn()
+                    # Add a header to the report
+                    with open(sample[analysistype].blastresults, 'r+') as f:
+                        # Read in the information from the blastresults file
+                        content = f.read()
+                        # Go back to the start of the file
+                        f.seek(0, 0)
+                        # Write the formatted header (\n) followed by the content to the file
+                        f.write('\t'.join(blastheader) + '\n' + content)
     return metadata
 
 
@@ -729,7 +733,8 @@ def parse_blast(metadata, analysistype, fieldnames, forward_dict, reverse_dict, 
                                             'forward_' + direction
                                     # The forward_ref attribute is the sequence of the forward primer extracted from
                                     # forward_dict
-                                    sample[analysistype].results[experiment][contig].forward_ref = forward_dict[experiment]
+                                    sample[analysistype].results[experiment][contig].forward_ref = forward_dict[
+                                        experiment]
                                     # Extract the sequence of the query. Use the extracted 'query_sequence' if the hit is
                                     # on the forward strand, otherwise, calculate the reverse complement
                                     sample[analysistype].results[experiment][contig].forward_query = \
@@ -783,7 +788,8 @@ def parse_blast(metadata, analysistype, fieldnames, forward_dict, reverse_dict, 
                                     except AttributeError:
                                         sample[analysistype].results[experiment][contig].direction \
                                             = 'reverse_' + direction
-                                    sample[analysistype].results[experiment][contig].reverse_ref = reverse_dict[experiment]
+                                    sample[analysistype].results[experiment][contig].reverse_ref = reverse_dict[
+                                        experiment]
                                     sample[analysistype].results[experiment][contig].reverse_query = \
                                         reverse_details['query_sequence'] if \
                                             direction == 'forward' else \
@@ -946,7 +952,8 @@ def amplicon_write(metadata, analysistype, reportpath, ):
                             seq_record = SeqRecord(seq=Seq(sample[analysistype].results[experiment][contig].sequence),
                                                    id='{sn}_{header}'
                                                    .format(sn=sample.name,
-                                                           header=sample[analysistype].results[experiment][contig].header),
+                                                           header=sample[analysistype].results[experiment][
+                                                               contig].header),
                                                    name='',
                                                    description='')
                             # Use SeqIO to write the SeqRecord to file
@@ -1074,6 +1081,37 @@ def best_matcher(overlaps, amplicon_range, total_mismatch, experiment, contig):
     return overlaps
 
 
+def metadata_clean(metadata, analysistype):
+    """
+    Clean attributes from sample that will cause issues during printing of metadata to file with json.dump
+    :param metadata: List of metadata objects for all samples
+    :param analysistype: String of current analysis type
+    :return: metadata: List of cleaned metadata objects
+    """
+    for sample in metadata:
+        if sample.general.bestassemblyfile != 'NA':
+            # Iterate through all the ipcress experiments
+            for experiment in sample[analysistype].results.datastore:
+                for contig in sample[analysistype].results[experiment].datastore:
+                    # Clean any attributes with type range
+                    try:
+                        sample[analysistype].results[experiment][contig].amplicon_range \
+                            = list(sample[analysistype].results[experiment][contig].amplicon_range)
+                    except AttributeError:
+                        pass
+                    try:
+                        sample[analysistype].results[experiment][contig].reverse_range \
+                            = list(sample[analysistype].results[experiment][contig].reverse_range)
+                    except AttributeError:
+                        pass
+                    try:
+                        sample[analysistype].results[experiment][contig].forward_range \
+                            = list(sample[analysistype].results[experiment][contig].forward_range)
+                    except AttributeError:
+                        pass
+    return metadata
+
+
 class VtyperIP(object):
 
     def vtyper(self):
@@ -1128,6 +1166,8 @@ class VtyperIP(object):
                                              analysistype=self.analysistype)
         self.toxin_profile()
         self.vtyper_report()
+        self.metadata = metadata_clean(metadata=self.metadata,
+                                       analysistype=self.analysistype)
 
     def toxin_profile(self):
         """
@@ -1162,8 +1202,8 @@ class VtyperIP(object):
                 if sample.general.bestassemblyfile != 'NA':
                     data += '{sn},{tp}\n'.format(sn=sample.name,
                                                  tp=sample[self.analysistype].toxinprofile)
-                # Write the data to the report
-                report.write(data)
+            # Write the data to the report
+            report.write(data)
 
     def __init__(self, metadataobject, analysistype, reportpath, mismatches=3):
         self.metadata = metadataobject
@@ -1264,6 +1304,8 @@ class CustomIP(object):
             amplicon_write(metadata=self.metadata,
                            analysistype=self.analysistype,
                            reportpath=self.reportpath)
+        self.metadata = metadata_clean(metadata=self.metadata,
+                                       analysistype=self.analysistype)
 
     def ipcress_report(self):
         logging.info('Creating summary report')
@@ -1285,16 +1327,18 @@ class CustomIP(object):
                                 if sample[self.analysistype].results[experiment][contig].direction == 'forward':
                                     location = '{forward}-{reverse}'.format(
                                         forward=sample[self.analysistype].results[experiment][contig].forward_pos,
-                                        reverse=str(int(sample[self.analysistype].results[experiment][contig].reverse_pos) +
-                                                    len(sample[self.analysistype].results[experiment][contig]
-                                                        .reverse_query))
+                                        reverse=str(
+                                            int(sample[self.analysistype].results[experiment][contig].reverse_pos) +
+                                            len(sample[self.analysistype].results[experiment][contig]
+                                                .reverse_query))
                                     )
                                 else:
                                     location = '{reverse}-{forward}'.format(
                                         reverse=sample[self.analysistype].results[experiment][contig].reverse_pos,
-                                        forward=str(int(sample[self.analysistype].results[experiment][contig].forward_pos) +
-                                                    len(sample[self.analysistype].results[experiment][contig]
-                                                        .forward_query))
+                                        forward=str(
+                                            int(sample[self.analysistype].results[experiment][contig].forward_pos) +
+                                            len(sample[self.analysistype].results[experiment][contig]
+                                                .forward_query))
                                     )
                             else:
                                 if sample[self.analysistype].results[experiment][contig].direction == 'forward':
@@ -1337,7 +1381,7 @@ class CustomIP(object):
                         if not results:
                             # If there were no amplicons, add the sample name and nothing else
                             data += '{sn}\n'.format(sn=sample.name)
-                report.write(data)
+            report.write(data)
 
     def __init__(self, metadataobject, sequencepath, reportpath, primerfile, min_amplicon_size, max_amplicon_size,
                  primer_format, mismatches=2, export_amplicons=False, contigbreaks=False, range_buffer=0):

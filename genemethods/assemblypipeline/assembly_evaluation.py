@@ -153,11 +153,11 @@ class AssemblyEvaluation(object):
                 if sample.general.bestassemblyfile != "NA":
                     # Allow for non-paired samples
                     if len(sample.general.trimmedcorrectedfastqfiles) == 2:
-                        sample.quast.cmd = 'quast --pe1 {forward} --pe2 {reverse}'\
+                        sample.quast.cmd = 'quast.py --pe1 {forward} --pe2 {reverse}'\
                             .format(forward=sample.general.trimmedcorrectedfastqfiles[0],
                                     reverse=sample.general.trimmedcorrectedfastqfiles[1])
                     else:
-                        sample.quast.cmd = 'quast --single {single}'\
+                        sample.quast.cmd = 'quast.py --single {single}'\
                             .format(single=sample.general.trimmedcorrectedfastqfiles[0])
                     # Both paired and unpaired samples share the rest of the system call
                     # --debug is specified, as certain temporary files are either used for downstream analyses

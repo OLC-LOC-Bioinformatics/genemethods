@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-from olctools.accessoryFunctions.accessoryFunctions import combinetargets, GenObject, make_path, MetadataObject
+from olctools.accessoryFunctions.accessoryFunctions import \
+    combinetargets, \
+    GenObject, \
+    make_path, \
+    MetadataObject, \
+    target_names
 from Bio.Sequencing.Applications import SamtoolsFaidxCommandline
 from io import StringIO
 from glob import glob
@@ -98,6 +103,14 @@ class Parser(object):
                 metadata[self.analysistype].combinedtargets = 'NA'
         metadata[self.analysistype].targetnames = [os.path.splitext(os.path.basename(fasta))[0] for fasta in
                                                    metadata[self.analysistype].targets]
+
+        if not metadata[self.analysistype].targetnames:
+            try:
+                metadata[self.analysistype].targetnames = target_names(
+                    sample=metadata,
+                    analysistype=self.analysistype)
+            except FileNotFoundError:
+                metadata[self.analysistype].combinedtargets = 'NA'
 
     def metadata_populate(self):
         """

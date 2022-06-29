@@ -65,6 +65,9 @@ class Skesa(object):
                                     .format(fastqfiles=','.join(fastqfiles),
                                             threads=self.cpus,
                                             contigs=sample.general.assemblyfile)
+                            # Specify that the files are gzipped
+                            if gz:
+                                sample.commands.assemble += ' --gz'
                     # If there are no fastq files, populate the metadata appropriately
                     else:
                         sample.general.assembly_output = 'NA'
