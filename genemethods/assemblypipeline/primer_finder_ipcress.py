@@ -129,123 +129,124 @@ def ipcress_parse(metadata, analysistype):
     """
     logging.info('Parsing ipcress outputs')
     for sample in metadata:
-        # Initialise the results GenObject
-        sample[analysistype].results = GenObject()
-        # Open the output file
-        with open(sample[analysistype].report, 'r') as ipcress_report:
-            # Initialise the experiment name
-            experiment = str()
-            # The output will be multiple blocks starting with 'Ipcress result' e.g.
-            '''
-            Ipcress result
-            --------------
-             Experiment: ES10
-                Primers: A B
-                Target: CP022407.1:filter(unmasked) Escherichia coli O121:H19 strain 16-9255 chromosome, complete genome
-                Matches: 21/21 19/19
-                Product: 103 bp (range 0-1500)
-            Result type: forward
+        if sample.general.bestassemblyfile != 'NA':
+            # Initialise the results GenObject
+            sample[analysistype].results = GenObject()
+            # Open the output file
+            with open(sample[analysistype].report, 'r') as ipcress_report:
+                # Initialise the experiment name
+                experiment = str()
+                # The output will be multiple blocks starting with 'Ipcress result' e.g.
+                '''
+                Ipcress result
+                --------------
+                 Experiment: ES10
+                    Primers: A B
+                    Target: CP022407.1:filter(unmasked) Escherichia coli O121:H19 strain 16-9255 chromosome, complete genome
+                    Matches: 21/21 19/19
+                    Product: 103 bp (range 0-1500)
+                Result type: forward
             
-            ...GGAAAGAATACTGGACCAGTC............................. # forward
-               |||||||||||||||||||||-->
-            5'-GGAAAGAATACTGGACCAGTC-3' 3'-GGTCATGGACACTTAGTCC-5' # primers
-                                        <--|||||||||||||||||||
-            ...............................GGTCATGGACACTTAGTCC... # revcomp
-            --
-            ipcress: CP022407.1:filter(unmasked) ES10 103 A 5388922 0 B 5389006 0 forward
-            >ES10_product_1 seq CP022407.1:filter(unmasked) start 5388922 length 103
-            GGAAAGAATACTGGACCAGTCGCTGGAATCTGCAACCGTTACTGCAAAGTGCTCAGTTGACAGGAATGAC
-            TGTCACAATCAAATCCAGTACCTGTGAATCAGG
-            '''
-            for line in ipcress_report:
-                # Allow for multiple experiments with the same name by appending an iterator to the end e.g. ES10_0
-                iterator = 0
-                # Find the 'Experiment' line e.g. Experiment: ES10
-                if 'Experiment:' in line:
-                    # Extract the experiment name e.g. ES10 and append the iterator
-                    experiment = line.split()[-1].rstrip() + f'_{iterator}'
-                    # Determine if the current experiment name has been initialised in the GenObject
-                    try:
-                        # While the experiment attribute exists, iterate through the experiment names
-                        while sample[analysistype].results[experiment]:
-                            # Increase the iterator
-                            iterator += 1
-                            # Recreate the experiment name
-                            experiment = line.split()[-1].rstrip() + f'_{iterator}'
-                        # Create the experiment name GenObject
-                        sample[analysistype].results[experiment] = GenObject()
-                    # Otherwise, the GenObject has not been initialise yet
-                    except AttributeError:
-                        sample[analysistype].results[experiment] = GenObject()
-                if 'Target:' in line:
-                    contig = line.split('Target:')[-1].split()[0].replace(':filter(unmasked)', '')
-                    try:
-                        sample[analysistype].results[experiment][contig].contig = contig
-                    except AttributeError:
-                        sample[analysistype].results[experiment][contig] = GenObject()
-                        sample[analysistype].results[experiment][contig].contig = contig
-                # Determine if the primers annealed to the forward or the reverse complement strand
-                # e.g. Result type: forward
-                if 'Result type:' in line:
-                    # Set the boolean appropriately
-                    if 'revcomp' in line:
-                        direction = False
-                    else:
-                        direction = True
-                # Lines with the query sequence start with '...'
-                if line.startswith('...'):
-                    # The top query sequence only has three periods
-                    # e.g. ...GGAAAGAATACTGGACCAGTC............................. # forward
-                    if not line.startswith('....'):
-                        # If forward, populate the forward_query attribute with the cleaned line
-                        if direction:
-                            sample[analysistype].results[experiment][contig].forward_query = line.replace('.', '') \
-                                .replace(' # forward\n', '')
-                        # Reverse
+                ...GGAAAGAATACTGGACCAGTC............................. # forward
+                   |||||||||||||||||||||-->
+                5'-GGAAAGAATACTGGACCAGTC-3' 3'-GGTCATGGACACTTAGTCC-5' # primers
+                                            <--|||||||||||||||||||
+                ...............................GGTCATGGACACTTAGTCC... # revcomp
+                --
+                ipcress: CP022407.1:filter(unmasked) ES10 103 A 5388922 0 B 5389006 0 forward
+                >ES10_product_1 seq CP022407.1:filter(unmasked) start 5388922 length 103
+                GGAAAGAATACTGGACCAGTCGCTGGAATCTGCAACCGTTACTGCAAAGTGCTCAGTTGACAGGAATGAC
+                TGTCACAATCAAATCCAGTACCTGTGAATCAGG
+                '''
+                for line in ipcress_report:
+                    # Allow for multiple experiments with the same name by appending an iterator to the end e.g. ES10_0
+                    iterator = 0
+                    # Find the 'Experiment' line e.g. Experiment: ES10
+                    if 'Experiment:' in line:
+                        # Extract the experiment name e.g. ES10 and append the iterator
+                        experiment = line.split()[-1].rstrip() + f'_{iterator}'
+                        # Determine if the current experiment name has been initialised in the GenObject
+                        try:
+                            # While the experiment attribute exists, iterate through the experiment names
+                            while sample[analysistype].results[experiment]:
+                                # Increase the iterator
+                                iterator += 1
+                                # Recreate the experiment name
+                                experiment = line.split()[-1].rstrip() + f'_{iterator}'
+                            # Create the experiment name GenObject
+                            sample[analysistype].results[experiment] = GenObject()
+                        # Otherwise, the GenObject has not been initialise yet
+                        except AttributeError:
+                            sample[analysistype].results[experiment] = GenObject()
+                    if 'Target:' in line:
+                        contig = line.split('Target:')[-1].split()[0].replace(':filter(unmasked)', '')
+                        try:
+                            sample[analysistype].results[experiment][contig].contig = contig
+                        except AttributeError:
+                            sample[analysistype].results[experiment][contig] = GenObject()
+                            sample[analysistype].results[experiment][contig].contig = contig
+                    # Determine if the primers annealed to the forward or the reverse complement strand
+                    # e.g. Result type: forward
+                    if 'Result type:' in line:
+                        # Set the boolean appropriately
+                        if 'revcomp' in line:
+                            direction = False
                         else:
-                            sample[analysistype].results[experiment][contig].reverse_query = \
-                                line.replace('.', '').replace(' # forward\n', '')
-                    # The bottom query sequence has many periods
-                    # e.g. ...............................GGTCATGGACACTTAGTCC... # revcomp
-                    else:
-                        # Reverse
-                        if direction:
-                            sample[analysistype].results[experiment][contig].reverse_query = \
-                                revcomp(line.replace('.', '').replace(' # revcomp\n', ''))
-                        # Forward
+                            direction = True
+                    # Lines with the query sequence start with '...'
+                    if line.startswith('...'):
+                        # The top query sequence only has three periods
+                        # e.g. ...GGAAAGAATACTGGACCAGTC............................. # forward
+                        if not line.startswith('....'):
+                            # If forward, populate the forward_query attribute with the cleaned line
+                            if direction:
+                                sample[analysistype].results[experiment][contig].forward_query = line.replace('.', '') \
+                                    .replace(' # forward\n', '')
+                            # Reverse
+                            else:
+                                sample[analysistype].results[experiment][contig].reverse_query = \
+                                    line.replace('.', '').replace(' # forward\n', '')
+                        # The bottom query sequence has many periods
+                        # e.g. ...............................GGTCATGGACACTTAGTCC... # revcomp
                         else:
-                            sample[analysistype].results[experiment][contig].forward_query = \
-                                revcomp(seq_string=line.replace('.', '').replace(' # revcomp\n', ''))
-                # The line with the primers starts with 5'
-                # e.g. 5'-GGAAAGAATACTGGACCAGTC-3' 3'-GGTCATGGACACTTAGTCC-5' # primers
-                if line.startswith('5\''):
-                    # Forward reverse
-                    if direction:
-                        # Split the cleaned line to create the forward_ref and reverse_ref attributes
-                        sample[analysistype].results[experiment][contig].forward_ref, \
+                            # Reverse
+                            if direction:
+                                sample[analysistype].results[experiment][contig].reverse_query = \
+                                    revcomp(line.replace('.', '').replace(' # revcomp\n', ''))
+                            # Forward
+                            else:
+                                sample[analysistype].results[experiment][contig].forward_query = \
+                                    revcomp(seq_string=line.replace('.', '').replace(' # revcomp\n', ''))
+                    # The line with the primers starts with 5'
+                    # e.g. 5'-GGAAAGAATACTGGACCAGTC-3' 3'-GGTCATGGACACTTAGTCC-5' # primers
+                    if line.startswith('5\''):
+                        # Forward reverse
+                        if direction:
+                            # Split the cleaned line to create the forward_ref and reverse_ref attributes
+                            sample[analysistype].results[experiment][contig].forward_ref, \
                             sample[analysistype].results[experiment][contig].reverse_ref = \
-                            line.replace('5', '').replace('\'', '').replace('3', '').replace('-', '') \
-                                .replace(' # primers\n', '').split()
-                        sample[analysistype].results[experiment][contig].reverse_ref = \
-                            revcomp(seq_string=sample[analysistype].results[experiment][contig].reverse_ref)
-                    # Reverse forward
-                    else:
-                        reverse_ref, forward_ref = \
-                            line.replace('5', '').replace('\'', '').replace('3', '').replace('-', '') \
-                                .replace(' # primers\n', '').split()
-                        sample[analysistype].results[experiment][contig].reverse_ref = reverse_ref
-                        sample[analysistype].results[experiment][contig].forward_ref = \
-                            revcomp(seq_string=forward_ref)
-                # Lines starting with 'ipcress:' contain results in an easily parsable format
-                # e.g. ipcress: CP022407.1:filter(unmasked) ES10 103 A 5388922 0 B 5389006 0 forward
-                # The eleven fields are contig (CP022407.1:filter(unmasked)), primer set (ES10), amplicon length (103),
-                # forward primer (A) - affected by reverse complement, position of forward primer (5388922), mismatches
-                # in forward primer (0), reverse primer (B), position of reverse primer (5389006), mismatches in reverse
-                # primer, analysis direction (forward) - will be 'revcomp' for experiments in reverse complement
-                if line.startswith('ipcress:'):
-                    # Forward
-                    if direction:
-                        ipcress_str, \
+                                line.replace('5', '').replace('\'', '').replace('3', '').replace('-', '') \
+                                    .replace(' # primers\n', '').split()
+                            sample[analysistype].results[experiment][contig].reverse_ref = \
+                                revcomp(seq_string=sample[analysistype].results[experiment][contig].reverse_ref)
+                        # Reverse forward
+                        else:
+                            reverse_ref, forward_ref = \
+                                line.replace('5', '').replace('\'', '').replace('3', '').replace('-', '') \
+                                    .replace(' # primers\n', '').split()
+                            sample[analysistype].results[experiment][contig].reverse_ref = reverse_ref
+                            sample[analysistype].results[experiment][contig].forward_ref = \
+                                revcomp(seq_string=forward_ref)
+                    # Lines starting with 'ipcress:' contain results in an easily parsable format
+                    # e.g. ipcress: CP022407.1:filter(unmasked) ES10 103 A 5388922 0 B 5389006 0 forward
+                    # The eleven fields are contig (CP022407.1:filter(unmasked)), primer set (ES10), amplicon length (103),
+                    # forward primer (A) - affected by reverse complement, position of forward primer (5388922), mismatches
+                    # in forward primer (0), reverse primer (B), position of reverse primer (5389006), mismatches in reverse
+                    # primer, analysis direction (forward) - will be 'revcomp' for experiments in reverse complement
+                    if line.startswith('ipcress:'):
+                        # Forward
+                        if direction:
+                            ipcress_str, \
                             sample[analysistype].results[experiment][contig].contig, \
                             sample[analysistype].results[experiment][contig].primer_set, \
                             sample[analysistype].results[experiment][contig].amplicon_length, \
@@ -256,12 +257,12 @@ def ipcress_parse(metadata, analysistype):
                             sample[analysistype].results[experiment][contig].reverse_pos, \
                             sample[analysistype].results[experiment][contig].reverse_mismatch, \
                             sample[analysistype].results[experiment][contig].direction = line.rstrip().split()
-                        # Clean up the name of the contig e.g. CP022407.1:filter(unmasked) becomes CP022407.1:
-                        sample[analysistype].results[experiment][contig].contig = \
-                            sample[analysistype].results[experiment][contig].contig.replace(':filter(unmasked)', '')
-                    # Reverse complement
-                    else:
-                        ipcress_str, \
+                            # Clean up the name of the contig e.g. CP022407.1:filter(unmasked) becomes CP022407.1:
+                            sample[analysistype].results[experiment][contig].contig = \
+                                sample[analysistype].results[experiment][contig].contig.replace(':filter(unmasked)', '')
+                        # Reverse complement
+                        else:
+                            ipcress_str, \
                             sample[analysistype].results[experiment][contig].contig, \
                             sample[analysistype].results[experiment][contig].primer_set, \
                             sample[analysistype].results[experiment][contig].amplicon_length, \
@@ -272,23 +273,23 @@ def ipcress_parse(metadata, analysistype):
                             sample[analysistype].results[experiment][contig].forward_pos, \
                             sample[analysistype].results[experiment][contig].forward_mismatch, \
                             sample[analysistype].results[experiment][contig].direction = line.rstrip().split()
-                        # Clean up the name of the contig e.g. CP022407.1:filter(unmasked) becomes CP022407.1:
-                        sample[analysistype].results[experiment][contig].contig = \
-                            sample[analysistype].results[experiment][contig].contig.replace(':filter(unmasked)', '')
-                # Find the extracted amplicon header
-                # e.g. >ES10_product_1 seq CP022407.1:filter(unmasked) start 5388922 length 103
-                if line.startswith('>'):
-                    # Set the header attribute with the with cleaned the header string
-                    sample[analysistype].results[experiment][contig].header = \
-                        line.rstrip().lstrip('>').replace(':filter(unmasked)', '')
-                    # Initialise a string to store the amplicon sequence
-                    sample[analysistype].results[experiment][contig].sequence = str()
-                    for subline in ipcress_report:
-                        # There's an empty line after the sequence - break when it is encountered
-                        if subline == '\n' or subline.startswith('--') or not subline:
-                            break
-                        # Add the sequence data to the growing string
-                        sample[analysistype].results[experiment][contig].sequence += subline.rstrip()
+                            # Clean up the name of the contig e.g. CP022407.1:filter(unmasked) becomes CP022407.1:
+                            sample[analysistype].results[experiment][contig].contig = \
+                                sample[analysistype].results[experiment][contig].contig.replace(':filter(unmasked)', '')
+                    # Find the extracted amplicon header
+                    # e.g. >ES10_product_1 seq CP022407.1:filter(unmasked) start 5388922 length 103
+                    if line.startswith('>'):
+                        # Set the header attribute with the with cleaned the header string
+                        sample[analysistype].results[experiment][contig].header = \
+                            line.rstrip().lstrip('>').replace(':filter(unmasked)', '')
+                        # Initialise a string to store the amplicon sequence
+                        sample[analysistype].results[experiment][contig].sequence = str()
+                        for subline in ipcress_report:
+                            # There's an empty line after the sequence - break when it is encountered
+                            if subline == '\n' or subline.startswith('--') or not subline:
+                                break
+                            # Add the sequence data to the growing string
+                            sample[analysistype].results[experiment][contig].sequence += subline.rstrip()
     return metadata
 
 
@@ -321,42 +322,43 @@ def ipcress_mismatches(metadata, analysistype, iupac):
     :return: metadata: Updated list of metadata objects
     """
     for sample in metadata:
-        # Iterate through all the ipcress experiments parsed above
-        for experiment in sample[analysistype].results.datastore:
-            for contig in sample[analysistype].results[experiment].datastore:
-                # Calculate the total number of mismatches
-                sample[analysistype].results[experiment][contig].total_mismatch = \
-                    int(sample[analysistype].results[experiment][contig].forward_mismatch) + \
-                    int(sample[analysistype].results[experiment][contig].reverse_mismatch)
-                # Determine the range of the amplicon - make sure that the direction is accounted for
-                if sample[analysistype].results[experiment][contig].direction == 'forward':
-                    sample[analysistype].results[experiment][contig].amplicon_range = \
-                        range(int(sample[analysistype].results[experiment][contig].forward_pos),
-                              int(sample[analysistype].results[experiment][contig].reverse_pos))
-                else:
-                    sample[analysistype].results[experiment][contig].amplicon_range = \
-                        range(int(sample[analysistype].results[experiment][contig].reverse_pos),
-                              int(sample[analysistype].results[experiment][contig].forward_pos))
-                # Determine if the forward primer has any mismatches
-                if int(sample[analysistype].results[experiment][contig].forward_mismatch) > 0:
-                    # Calculate details of the mismatches
-                    sample[analysistype].results[experiment][contig].forward_mismatch_details = \
-                        determine_mismatch_locations(
-                            ref_primer=sample[analysistype].results[experiment][contig].forward_ref,
-                            query_primer=sample[analysistype].results[experiment][contig].forward_query,
-                            iupac=iupac)
-                # If no mismatches, initialise the attributes as an empty string
-                else:
-                    sample[analysistype].results[experiment][contig].forward_mismatch_details = str()
-                # Mismatches in reverse primer
-                if int(sample[analysistype].results[experiment][contig].reverse_mismatch) > 0:
-                    sample[analysistype].results[experiment][contig].reverse_mismatch_details = \
-                        determine_mismatch_locations(
-                            ref_primer=sample[analysistype].results[experiment][contig].reverse_ref,
-                            query_primer=sample[analysistype].results[experiment][contig].reverse_query,
-                            iupac=iupac)
-                else:
-                    sample[analysistype].results[experiment][contig].reverse_mismatch_details = str()
+        if sample.general.bestassemblyfile != 'NA':
+            # Iterate through all the ipcress experiments parsed above
+            for experiment in sample[analysistype].results.datastore:
+                for contig in sample[analysistype].results[experiment].datastore:
+                    # Calculate the total number of mismatches
+                    sample[analysistype].results[experiment][contig].total_mismatch = \
+                        int(sample[analysistype].results[experiment][contig].forward_mismatch) + \
+                        int(sample[analysistype].results[experiment][contig].reverse_mismatch)
+                    # Determine the range of the amplicon - make sure that the direction is accounted for
+                    if sample[analysistype].results[experiment][contig].direction == 'forward':
+                        sample[analysistype].results[experiment][contig].amplicon_range = \
+                            range(int(sample[analysistype].results[experiment][contig].forward_pos),
+                                  int(sample[analysistype].results[experiment][contig].reverse_pos))
+                    else:
+                        sample[analysistype].results[experiment][contig].amplicon_range = \
+                            range(int(sample[analysistype].results[experiment][contig].reverse_pos),
+                                  int(sample[analysistype].results[experiment][contig].forward_pos))
+                    # Determine if the forward primer has any mismatches
+                    if int(sample[analysistype].results[experiment][contig].forward_mismatch) > 0:
+                        # Calculate details of the mismatches
+                        sample[analysistype].results[experiment][contig].forward_mismatch_details = \
+                            determine_mismatch_locations(
+                                ref_primer=sample[analysistype].results[experiment][contig].forward_ref,
+                                query_primer=sample[analysistype].results[experiment][contig].forward_query,
+                                iupac=iupac)
+                    # If no mismatches, initialise the attributes as an empty string
+                    else:
+                        sample[analysistype].results[experiment][contig].forward_mismatch_details = str()
+                    # Mismatches in reverse primer
+                    if int(sample[analysistype].results[experiment][contig].reverse_mismatch) > 0:
+                        sample[analysistype].results[experiment][contig].reverse_mismatch_details = \
+                            determine_mismatch_locations(
+                                ref_primer=sample[analysistype].results[experiment][contig].reverse_ref,
+                                query_primer=sample[analysistype].results[experiment][contig].reverse_query,
+                                iupac=iupac)
+                    else:
+                        sample[analysistype].results[experiment][contig].reverse_mismatch_details = str()
     return metadata
 
 
@@ -400,69 +402,70 @@ def best_hit(metadata, analysistype, range_buffer=0):
     :return: Updated list of metadata objects
     """
     for sample in metadata:
-        # Initialise a dictionary to store amplicon range: additional details
-        overlaps = dict()
-        # Initialise the .best_hits attribute as required
-        if not GenObject.isattr(sample[analysistype], 'best_hits'):
-            sample[analysistype].best_hits = dict()
-        for experiment in sample[analysistype].results.datastore:
-            for contig in sample[analysistype].results[experiment].datastore:
-                # Ensure that the amplicon_range attribute exists - happens when the method is used for singleton BLAST
-                # analyses
-                try:
-                    amplicon_range = sample[analysistype].results[experiment][contig].amplicon_range
-                    # Ensure that the dictionary has been created
-                    if overlaps:
-                        # Create a boolean to track if the current primer set overlaps with any other in the dictionary
-                        overlap = False
-                        # Iterate through all the previous ranges: dictionaries in the overlaps dictionary
-                        try:
-                            for ranges, overlap_dict in overlaps[contig].items():
-                                # Increase the range by the provided buffer value
-                                buffered_min = amplicon_range[0] - range_buffer if amplicon_range[0] - \
-                                                                                   range_buffer >= 0 else 0
-                                buffered_max = amplicon_range[-1] + range_buffer
-                                # Check if the current range overlaps with a previously stored range
-                                if range(max(buffered_min, ranges[0]),
-                                         min(buffered_max, ranges[-1]) + 1):
-                                    # Set the overlap boolean to True
-                                    overlap = True
-                                    # If the current primer set has fewer mismatches than the previous best primer set
-                                    # for this range, replace the details in the overlap dictionary with the details
-                                    # from the current set
-                                    if sample[analysistype].results[experiment][contig].total_mismatch < \
-                                            overlap_dict['mismatches']:
-                                        overlap_dict['mismatches'] = sample[analysistype].results[experiment][contig].\
-                                            total_mismatch
-                                        overlap_dict['experiment'] = experiment
-                            # If the current range does not overlap with any previous primer sets, add this range and
-                            # details to the dictionary
-                            if not overlap:
+        if sample.general.bestassemblyfile != 'NA':
+            # Initialise a dictionary to store amplicon range: additional details
+            overlaps = dict()
+            # Initialise the .best_hits attribute as required
+            if not GenObject.isattr(sample[analysistype], 'best_hits'):
+                sample[analysistype].best_hits = dict()
+            for experiment in sample[analysistype].results.datastore:
+                for contig in sample[analysistype].results[experiment].datastore:
+                    # Ensure that the amplicon_range attribute exists - happens when the method is used for singleton BLAST
+                    # analyses
+                    try:
+                        amplicon_range = sample[analysistype].results[experiment][contig].amplicon_range
+                        # Ensure that the dictionary has been created
+                        if overlaps:
+                            # Create a boolean to track if the current primer set overlaps with any other in the dictionary
+                            overlap = False
+                            # Iterate through all the previous ranges: dictionaries in the overlaps dictionary
+                            try:
+                                for ranges, overlap_dict in overlaps[contig].items():
+                                    # Increase the range by the provided buffer value
+                                    buffered_min = amplicon_range[0] - range_buffer if amplicon_range[0] - \
+                                                                                       range_buffer >= 0 else 0
+                                    buffered_max = amplicon_range[-1] + range_buffer
+                                    # Check if the current range overlaps with a previously stored range
+                                    if range(max(buffered_min, ranges[0]),
+                                             min(buffered_max, ranges[-1]) + 1):
+                                        # Set the overlap boolean to True
+                                        overlap = True
+                                        # If the current primer set has fewer mismatches than the previous best primer set
+                                        # for this range, replace the details in the overlap dictionary with the details
+                                        # from the current set
+                                        if sample[analysistype].results[experiment][contig].total_mismatch < \
+                                                overlap_dict['mismatches']:
+                                            overlap_dict['mismatches'] = sample[analysistype].results[experiment][contig]. \
+                                                total_mismatch
+                                            overlap_dict['experiment'] = experiment
+                                # If the current range does not overlap with any previous primer sets, add this range and
+                                # details to the dictionary
+                                if not overlap:
+                                    overlaps[contig][amplicon_range] = {
+                                        'mismatches': sample[analysistype].results[experiment][contig].total_mismatch,
+                                        'experiment': experiment
+                                    }
+                            except KeyError:
+                                overlaps[contig] = dict()
+                                # Set the amplicon range as the key for an additional dictionary containing total
+                                # mismatches and experiment name
                                 overlaps[contig][amplicon_range] = {
                                     'mismatches': sample[analysistype].results[experiment][contig].total_mismatch,
                                     'experiment': experiment
                                 }
-                        except KeyError:
+                        # If this is the first sample, populate the dictionary
+                        else:
                             overlaps[contig] = dict()
-                            # Set the amplicon range as the key for an additional dictionary containing total
-                            # mismatches and experiment name
+                            # Set the amplicon range as the key for an additional dictionary containing total mismatches and
+                            # experiment name
                             overlaps[contig][amplicon_range] = {
                                 'mismatches': sample[analysistype].results[experiment][contig].total_mismatch,
                                 'experiment': experiment
                             }
-                    # If this is the first sample, populate the dictionary
-                    else:
-                        overlaps[contig] = dict()
-                        # Set the amplicon range as the key for an additional dictionary containing total mismatches and
-                        # experiment name
-                        overlaps[contig][amplicon_range] = {
-                            'mismatches': sample[analysistype].results[experiment][contig].total_mismatch,
-                            'experiment': experiment
-                        }
-                    # Create the best_hits attribute using the overlaps dictionary
-                    sample[analysistype].best_hits = overlaps
-                except AttributeError:
-                    pass
+                        # Create the best_hits attribute using the overlaps dictionary
+                        sample[analysistype].best_hits = overlaps
+                    except AttributeError:
+                        pass
     return metadata
 
 
@@ -477,9 +480,10 @@ def empty_results(metadata, analysistype):
     empty = False
     # Iterate through all the samples
     for sample in metadata:
-        # Check to see if the results attribute is empty
-        if not sample[analysistype].results.datastore:
-            empty = True
+        if sample.general.bestassemblyfile != 'NA':
+            # Check to see if the results attribute is empty
+            if not sample[analysistype].results.datastore:
+                empty = True
     return empty
 
 
@@ -519,7 +523,7 @@ def make_blastdb(formattedprimers):
     nhr = '{db}.nhr'.format(db=db)  # add nhr for searching
     if not os.path.isfile(str(nhr)):
         # Create the databases
-        command = 'makeblastdb -in {primerfile} -parse_seqids -max_file_sz 2GB -dbtype nucl -out {outfile}'\
+        command = 'makeblastdb -in {primerfile} -parse_seqids -max_file_sz 2GB -dbtype nucl -out {outfile}' \
             .format(primerfile=formattedprimers,
                     outfile=db)
         run_subprocess(command)
@@ -537,51 +541,52 @@ def run_blast(metadata, analysistype, formattedprimers, blastheader, threads):
     """
     logging.info('Running BLAST analyses')
     for sample in metadata:
-        sample[analysistype].blastresults = '{of}_blast_results.tsv' \
+        if sample.general.bestassemblyfile != 'NA':
+            sample[analysistype].blastresults = '{of}_blast_results.tsv' \
                 .format(of=os.path.join(sample.general.outputdirectory, sample.name))
-        # If a report was created, but no results entered - program crashed, or no sequences passed thresholds,
-        # remove the report, and run the blast analyses again
-        try:
-            size = os.path.getsize(sample[analysistype].blastresults)
-            if size == 0:
-                os.remove(sample[analysistype].blastresults)
-        except FileNotFoundError:
-            pass
-        # Check to see if the results attribute is empty
-        if not sample[analysistype].results.datastore and not os.path.isfile(sample[analysistype].blastresults):
-            db = os.path.splitext(formattedprimers)[0]
-            # BLAST command line call. Note the high number of alignments.
-            # Due to the fact that all the targets are combined into one database, this is to ensure that all potential
-            # alignments are reported. Also note the custom outfmt. Using very permissive BLAST settings (word_size: 4,
-            # dust:'no', penalty: -1, and task: 'blastn-short' to allow BLAST to return results even with the short
-            # primer input sequences)
-            blastn = NcbiblastnCommandline(query=sample.general.bestassemblyfile,
-                                           db=db,
-                                           evalue=1,
-                                           task='blastn-short',
-                                           word_size=4,
-                                           dust='no',
-                                           penalty=-2,
-                                           reward=3,
-                                           gapopen=5,
-                                           gapextend=5,
-                                           num_alignments=1000000,
-                                           num_threads=threads,
-                                           outfmt='6 qseqid sseqid positive mismatch gaps evalue bitscore slen '
-                                                  'length qstart qend qseq sstart send sseq',
-                                           out=sample[analysistype].blastresults)
-            # Save the blast command in the metadata
-            sample[analysistype].blastcommand = str(blastn)
-            # Run the blastn command
-            blastn()
-            # Add a header to the report
-            with open(sample[analysistype].blastresults, 'r+') as f:
-                # Read in the information from the blastresults file
-                content = f.read()
-                # Go back to the start of the file
-                f.seek(0, 0)
-                # Write the formatted header (\n) followed by the content to the file
-                f.write('\t'.join(blastheader) + '\n' + content)
+            # If a report was created, but no results entered - program crashed, or no sequences passed thresholds,
+            # remove the report, and run the blast analyses again
+            try:
+                size = os.path.getsize(sample[analysistype].blastresults)
+                if size == 0:
+                    os.remove(sample[analysistype].blastresults)
+            except FileNotFoundError:
+                pass
+            # Check to see if the results attribute is empty
+            if not sample[analysistype].results.datastore and not os.path.isfile(sample[analysistype].blastresults):
+                db = os.path.splitext(formattedprimers)[0]
+                # BLAST command line call. Note the high number of alignments.
+                # Due to the fact that all the targets are combined into one database, this is to ensure that all potential
+                # alignments are reported. Also note the custom outfmt. Using very permissive BLAST settings (word_size: 4,
+                # dust:'no', penalty: -1, and task: 'blastn-short' to allow BLAST to return results even with the short
+                # primer input sequences)
+                blastn = NcbiblastnCommandline(query=sample.general.bestassemblyfile,
+                                               db=db,
+                                               evalue=1,
+                                               task='blastn-short',
+                                               word_size=4,
+                                               dust='no',
+                                               penalty=-2,
+                                               reward=3,
+                                               gapopen=5,
+                                               gapextend=5,
+                                               num_alignments=1000000,
+                                               num_threads=threads,
+                                               outfmt='6 qseqid sseqid positive mismatch gaps evalue bitscore slen '
+                                                      'length qstart qend qseq sstart send sseq',
+                                               out=sample[analysistype].blastresults)
+                # Save the blast command in the metadata
+                sample[analysistype].blastcommand = str(blastn)
+                # Run the blastn command
+                blastn()
+                # Add a header to the report
+                with open(sample[analysistype].blastresults, 'r+') as f:
+                    # Read in the information from the blastresults file
+                    content = f.read()
+                    # Go back to the start of the file
+                    f.seek(0, 0)
+                    # Write the formatted header (\n) followed by the content to the file
+                    f.write('\t'.join(blastheader) + '\n' + content)
     return metadata
 
 
@@ -600,189 +605,190 @@ def parse_blast(metadata, analysistype, fieldnames, forward_dict, reverse_dict, 
     """
     logging.info('Parsing BLAST outputs')
     for sample in metadata:
-        # Only process the samples that were analysed with BLAST
-        if os.path.isfile(sample[analysistype].blastresults):
-            # Open blast output csv file
-            csvfile = open(sample[analysistype].blastresults)
-            # Skip header
-            csvfile.readline()
-            # Open the sequence profile file as a dictionary
-            blastdict = DictReader(csvfile, fieldnames=fieldnames, dialect='excel-tab')
-            hit_dict = dict()
-            # Go through each BLAST result
-            for row in blastdict:
-                # Extract the primer name and the direction (F/R) from the subject_id
-                # e.g. Lin-R yields a primer_name of Lin, and a direction of R
-                primer_name = row['subject_id'][:-2]
-                direction = row['subject_id'][-1]
-                positives = int(row['positives'])
-                contig = row['query_id']
-                # Initialise the primer name in the dictionary as required
-                if primer_name not in hit_dict:
-                    hit_dict[primer_name] = dict()
-                if contig not in hit_dict[primer_name]:
-                    hit_dict[primer_name][contig] = dict()
-                # Populate the hit_dict for the forward primer
-                if direction == 'F':
-                    # Find hits that do not exceed the maximum number of mismatches; calculated by subtracting the
-                    # number of positives from the total length of the primer sequence
-                    if positives >= (len(forward_dict[primer_name]) - mismatches):
-                        # Initialise the 'forward' key in the dictionary as required
-                        if 'forward' not in hit_dict[primer_name]:
-                            hit_dict[primer_name][contig]['forward'] = dict()
-                        # If the dictionary is still empty, add the number of positives: blast details
-                        if not hit_dict[primer_name][contig]['forward']:
-                            hit_dict[primer_name][contig]['forward'][positives] = row
-                        # Extract the number of positives from the previous best result in the dictionary
-                        previous_best = list(hit_dict[primer_name][contig]['forward'].keys())[0]
-                        # Check if the current number of positives is better than the previous best
-                        if positives > previous_best:
-                            # Add the current positives: blast details to the dictionary
-                            hit_dict[primer_name][contig]['forward'][positives] = row
-                            # Delete the previous best positives key from the dictionary
-                            del(hit_dict[primer_name][contig]['forward'][previous_best])
-                # Same as above, but with the reverse primer
-                else:
-                    if positives >= (len(reverse_dict[primer_name]) - mismatches):
-                        if 'reverse' not in hit_dict[primer_name][contig]:
-                            hit_dict[primer_name][contig]['reverse'] = dict()
-                        if not hit_dict[primer_name][contig]['reverse']:
-                            hit_dict[primer_name][contig]['reverse'][positives] = row
-                        previous_best = list(hit_dict[primer_name][contig]['reverse'].keys())[0]
-                        if positives > previous_best:
-                            hit_dict[primer_name][contig]['reverse'][positives] = row
-                            del (hit_dict[primer_name][contig]['reverse'][previous_best])
-            # Iterate through hit_dict
-            for experiment, contig_dict in hit_dict.items():
-                for contig, detail_dict in contig_dict.items():
-                    # Only continue if the detail_dict has a length of two (positive hits for both forward and reverse
-                    # primers), unless searching for singletons
-                    if len(detail_dict) >= min_hits:
-                        # Initialise the experiment GenObject
-                        if not GenObject.isattr(sample[analysistype].results, experiment):
-                            sample[analysistype].results[experiment] = GenObject()
-                        # Forward primer
-                        if 'forward' in detail_dict:
-                            for positives, forward_details in detail_dict['forward'].items():
-                                if not GenObject.isattr(sample[analysistype].results[experiment], contig):
-                                    sample[analysistype].results[experiment][contig] = GenObject()
-                                # Check to see if the .contig attribute already exists
-                                try:
-                                    if sample[analysistype].results[experiment][contig].contig:
-                                        # Append a semicolon plus 'forward_' and the extracted query_id
-                                        sample[analysistype].results[experiment][contig].contig += \
-                                            ';forward_' + forward_details['query_id']
-                                    else:
+        if sample.general.bestassemblyfile != 'NA':
+            # Only process the samples that were analysed with BLAST
+            if os.path.isfile(sample[analysistype].blastresults):
+                # Open blast output csv file
+                csvfile = open(sample[analysistype].blastresults)
+                # Skip header
+                csvfile.readline()
+                # Open the sequence profile file as a dictionary
+                blastdict = DictReader(csvfile, fieldnames=fieldnames, dialect='excel-tab')
+                hit_dict = dict()
+                # Go through each BLAST result
+                for row in blastdict:
+                    # Extract the primer name and the direction (F/R) from the subject_id
+                    # e.g. Lin-R yields a primer_name of Lin, and a direction of R
+                    primer_name = row['subject_id'][:-2]
+                    direction = row['subject_id'][-1]
+                    positives = int(row['positives'])
+                    contig = row['query_id']
+                    # Initialise the primer name in the dictionary as required
+                    if primer_name not in hit_dict:
+                        hit_dict[primer_name] = dict()
+                    if contig not in hit_dict[primer_name]:
+                        hit_dict[primer_name][contig] = dict()
+                    # Populate the hit_dict for the forward primer
+                    if direction == 'F':
+                        # Find hits that do not exceed the maximum number of mismatches; calculated by subtracting the
+                        # number of positives from the total length of the primer sequence
+                        if positives >= (len(forward_dict[primer_name]) - mismatches):
+                            # Initialise the 'forward' key in the dictionary as required
+                            if 'forward' not in hit_dict[primer_name]:
+                                hit_dict[primer_name][contig]['forward'] = dict()
+                            # If the dictionary is still empty, add the number of positives: blast details
+                            if not hit_dict[primer_name][contig]['forward']:
+                                hit_dict[primer_name][contig]['forward'][positives] = row
+                            # Extract the number of positives from the previous best result in the dictionary
+                            previous_best = list(hit_dict[primer_name][contig]['forward'].keys())[0]
+                            # Check if the current number of positives is better than the previous best
+                            if positives > previous_best:
+                                # Add the current positives: blast details to the dictionary
+                                hit_dict[primer_name][contig]['forward'][positives] = row
+                                # Delete the previous best positives key from the dictionary
+                                del (hit_dict[primer_name][contig]['forward'][previous_best])
+                    # Same as above, but with the reverse primer
+                    else:
+                        if positives >= (len(reverse_dict[primer_name]) - mismatches):
+                            if 'reverse' not in hit_dict[primer_name][contig]:
+                                hit_dict[primer_name][contig]['reverse'] = dict()
+                            if not hit_dict[primer_name][contig]['reverse']:
+                                hit_dict[primer_name][contig]['reverse'][positives] = row
+                            previous_best = list(hit_dict[primer_name][contig]['reverse'].keys())[0]
+                            if positives > previous_best:
+                                hit_dict[primer_name][contig]['reverse'][positives] = row
+                                del (hit_dict[primer_name][contig]['reverse'][previous_best])
+                # Iterate through hit_dict
+                for experiment, contig_dict in hit_dict.items():
+                    for contig, detail_dict in contig_dict.items():
+                        # Only continue if the detail_dict has a length of two (positive hits for both forward and reverse
+                        # primers), unless searching for singletons
+                        if len(detail_dict) >= min_hits:
+                            # Initialise the experiment GenObject
+                            if not GenObject.isattr(sample[analysistype].results, experiment):
+                                sample[analysistype].results[experiment] = GenObject()
+                            # Forward primer
+                            if 'forward' in detail_dict:
+                                for positives, forward_details in detail_dict['forward'].items():
+                                    if not GenObject.isattr(sample[analysistype].results[experiment], contig):
+                                        sample[analysistype].results[experiment][contig] = GenObject()
+                                    # Check to see if the .contig attribute already exists
+                                    try:
+                                        if sample[analysistype].results[experiment][contig].contig:
+                                            # Append a semicolon plus 'forward_' and the extracted query_id
+                                            sample[analysistype].results[experiment][contig].contig += \
+                                                ';forward_' + forward_details['query_id']
+                                        else:
+                                            sample[analysistype].results[experiment][contig].contig = \
+                                                'forward_' + forward_details['query_id']
+                                    # Otherwise create and populate the attribute with 'forward_' and the extracted query_id
+                                    except AttributeError:
                                         sample[analysistype].results[experiment][contig].contig = \
                                             'forward_' + forward_details['query_id']
-                                # Otherwise create and populate the attribute with 'forward_' and the extracted query_id
-                                except AttributeError:
-                                    sample[analysistype].results[experiment][contig].contig = \
-                                        'forward_' + forward_details['query_id']
-                                sample[analysistype].results[experiment][contig].primer_set = experiment
-                                # Set the amplicon length to zero
-                                sample[analysistype].results[experiment][contig].amplicon_length = 0
-                                # Forward primers are referred to as 'A' in ipcress outputs
-                                sample[analysistype].results[experiment][contig].forward_primer = 'A'
-                                # Create an attribute to store the range over which the primer had hits
-                                # e.g. 4-20 indicates that the first three bases were not covered
-                                sample[analysistype].results[experiment][contig].forward_pos_range = [
-                                    min(int(forward_details['subject_start']),
-                                        int(forward_details['subject_end'])),
-                                    max(int(forward_details['subject_start']),
-                                        int(forward_details['subject_end'])),
+                                    sample[analysistype].results[experiment][contig].primer_set = experiment
+                                    # Set the amplicon length to zero
+                                    sample[analysistype].results[experiment][contig].amplicon_length = 0
+                                    # Forward primers are referred to as 'A' in ipcress outputs
+                                    sample[analysistype].results[experiment][contig].forward_primer = 'A'
+                                    # Create an attribute to store the range over which the primer had hits
+                                    # e.g. 4-20 indicates that the first three bases were not covered
+                                    sample[analysistype].results[experiment][contig].forward_pos_range = [
+                                        min(int(forward_details['subject_start']),
+                                            int(forward_details['subject_end'])),
+                                        max(int(forward_details['subject_start']),
+                                            int(forward_details['subject_end'])),
                                     ]
-                                # Create an attribute to store the range over which the primer hit the query sequence
-                                sample[analysistype].results[experiment][contig].forward_range = \
-                                    range(
-                                        min(int(forward_details['query_start']),
-                                            int(forward_details['query_end'])),
-                                        max(int(forward_details['query_start']),
-                                            int(forward_details['query_end']))
-                                      )
-                                # Calculate the number of mismatches by subtracting the total number of positives from
-                                # the total length of the primer sequence
-                                sample[analysistype].results[experiment][contig].forward_mismatch = \
-                                    len(forward_dict[experiment]) - int(forward_details['positives'])
-                                # Determine if the hit was on the forward or reverse strand. Hits on the forward strand
-                                # will have a subject_start before the subject_end (opposite for hits on the
-                                # rev strand) e.g. start: 4, end 20 for hits on the forward strand
-                                direction = 'forward' if int(forward_details['subject_start']) < int(
-                                    forward_details['subject_end']) else 'revcomp'
-                                sample[analysistype].results[experiment][contig].forward_direction = direction
-                                # Either create or update the .direction attribute with the calculated direction
-                                try:
-                                    if sample[analysistype].results[experiment][contig].direction:
-                                        sample[analysistype].results[experiment][contig].direction += \
-                                            ';forward_' + direction
-                                    else:
+                                    # Create an attribute to store the range over which the primer hit the query sequence
+                                    sample[analysistype].results[experiment][contig].forward_range = \
+                                        range(
+                                            min(int(forward_details['query_start']),
+                                                int(forward_details['query_end'])),
+                                            max(int(forward_details['query_start']),
+                                                int(forward_details['query_end']))
+                                        )
+                                    # Calculate the number of mismatches by subtracting the total number of positives from
+                                    # the total length of the primer sequence
+                                    sample[analysistype].results[experiment][contig].forward_mismatch = \
+                                        len(forward_dict[experiment]) - int(forward_details['positives'])
+                                    # Determine if the hit was on the forward or reverse strand. Hits on the forward strand
+                                    # will have a subject_start before the subject_end (opposite for hits on the
+                                    # rev strand) e.g. start: 4, end 20 for hits on the forward strand
+                                    direction = 'forward' if int(forward_details['subject_start']) < int(
+                                        forward_details['subject_end']) else 'revcomp'
+                                    sample[analysistype].results[experiment][contig].forward_direction = direction
+                                    # Either create or update the .direction attribute with the calculated direction
+                                    try:
+                                        if sample[analysistype].results[experiment][contig].direction:
+                                            sample[analysistype].results[experiment][contig].direction += \
+                                                ';forward_' + direction
+                                        else:
+                                            sample[analysistype].results[experiment][contig].direction = \
+                                                'forward_' + direction
+                                    except AttributeError:
                                         sample[analysistype].results[experiment][contig].direction = \
                                             'forward_' + direction
-                                except AttributeError:
-                                    sample[analysistype].results[experiment][contig].direction = \
-                                        'forward_' + direction
-                                # The forward_ref attribute is the sequence of the forward primer extracted from
-                                # forward_dict
-                                sample[analysistype].results[experiment][contig].forward_ref = forward_dict[experiment]
-                                # Extract the sequence of the query. Use the extracted 'query_sequence' if the hit is
-                                # on the forward strand, otherwise, calculate the reverse complement
-                                sample[analysistype].results[experiment][contig].forward_query = \
-                                    forward_details['query_sequence'] if \
-                                    direction == 'forward' else \
-                                    revcomp(seq_string=forward_details['query_sequence'],
-                                            blast_primers=True)
+                                    # The forward_ref attribute is the sequence of the forward primer extracted from
+                                    # forward_dict
+                                    sample[analysistype].results[experiment][contig].forward_ref = forward_dict[experiment]
+                                    # Extract the sequence of the query. Use the extracted 'query_sequence' if the hit is
+                                    # on the forward strand, otherwise, calculate the reverse complement
+                                    sample[analysistype].results[experiment][contig].forward_query = \
+                                        forward_details['query_sequence'] if \
+                                            direction == 'forward' else \
+                                            revcomp(seq_string=forward_details['query_sequence'],
+                                                    blast_primers=True)
 
-                        # Reverse primer - same as above
-                        if 'reverse' in detail_dict:
-                            for positives, reverse_details in detail_dict['reverse'].items():
-                                if not GenObject.isattr(sample[analysistype].results[experiment], contig):
-                                    sample[analysistype].results[experiment][contig] = GenObject()
-                                try:
-                                    if sample[analysistype].results[experiment][contig].contig:
-                                        sample[analysistype].results[experiment][contig].contig += \
-                                            ';reverse_' + reverse_details['query_id']
-                                    else:
+                            # Reverse primer - same as above
+                            if 'reverse' in detail_dict:
+                                for positives, reverse_details in detail_dict['reverse'].items():
+                                    if not GenObject.isattr(sample[analysistype].results[experiment], contig):
+                                        sample[analysistype].results[experiment][contig] = GenObject()
+                                    try:
+                                        if sample[analysistype].results[experiment][contig].contig:
+                                            sample[analysistype].results[experiment][contig].contig += \
+                                                ';reverse_' + reverse_details['query_id']
+                                        else:
+                                            sample[analysistype].results[experiment][contig].contig = \
+                                                'reverse_' + reverse_details['query_id']
+                                    except AttributeError:
                                         sample[analysistype].results[experiment][contig].contig = \
                                             'reverse_' + reverse_details['query_id']
-                                except AttributeError:
-                                    sample[analysistype].results[experiment][contig].contig = \
-                                        'reverse_' + reverse_details['query_id']
-                                sample[analysistype].results[experiment][contig].primer_set = experiment
-                                sample[analysistype].results[experiment][contig].reverse_primer = 'B'
-                                sample[analysistype].results[experiment][contig].reverse_pos_range = [
-                                    min(int(reverse_details['subject_start']),
-                                        int(reverse_details['subject_end'])),
-                                    max(int(reverse_details['subject_start']),
-                                        int(reverse_details['subject_end'])),
-                                ]
-                                sample[analysistype].results[experiment][contig].reverse_range = \
-                                    range(
-                                        min(int(reverse_details['query_start']),
-                                            int(reverse_details['query_end'])),
-                                        max(int(reverse_details['query_start']),
-                                            int(reverse_details['query_end']))
-                                    )
-                                sample[analysistype].results[experiment][contig].reverse_mismatch = \
-                                    len(reverse_dict[experiment]) - int(reverse_details['positives'])
-                                direction = 'forward' if int(reverse_details['subject_start']) < int(
-                                    reverse_details['subject_end']) else 'revcomp'
-                                sample[analysistype].results[experiment][contig].reverse_direction = direction
-                                try:
-                                    if sample[analysistype].results[experiment][contig].direction:
-                                        sample[analysistype].results[experiment][contig].direction \
-                                            += ';reverse_' + direction
-                                    else:
+                                    sample[analysistype].results[experiment][contig].primer_set = experiment
+                                    sample[analysistype].results[experiment][contig].reverse_primer = 'B'
+                                    sample[analysistype].results[experiment][contig].reverse_pos_range = [
+                                        min(int(reverse_details['subject_start']),
+                                            int(reverse_details['subject_end'])),
+                                        max(int(reverse_details['subject_start']),
+                                            int(reverse_details['subject_end'])),
+                                    ]
+                                    sample[analysistype].results[experiment][contig].reverse_range = \
+                                        range(
+                                            min(int(reverse_details['query_start']),
+                                                int(reverse_details['query_end'])),
+                                            max(int(reverse_details['query_start']),
+                                                int(reverse_details['query_end']))
+                                        )
+                                    sample[analysistype].results[experiment][contig].reverse_mismatch = \
+                                        len(reverse_dict[experiment]) - int(reverse_details['positives'])
+                                    direction = 'forward' if int(reverse_details['subject_start']) < int(
+                                        reverse_details['subject_end']) else 'revcomp'
+                                    sample[analysistype].results[experiment][contig].reverse_direction = direction
+                                    try:
+                                        if sample[analysistype].results[experiment][contig].direction:
+                                            sample[analysistype].results[experiment][contig].direction \
+                                                += ';reverse_' + direction
+                                        else:
+                                            sample[analysistype].results[experiment][contig].direction \
+                                                = 'reverse_' + direction
+                                    except AttributeError:
                                         sample[analysistype].results[experiment][contig].direction \
                                             = 'reverse_' + direction
-                                except AttributeError:
-                                    sample[analysistype].results[experiment][contig].direction \
-                                        = 'reverse_' + direction
-                                sample[analysistype].results[experiment][contig].reverse_ref = reverse_dict[experiment]
-                                sample[analysistype].results[experiment][contig].reverse_query = \
-                                    reverse_details['query_sequence'] if \
-                                    direction == 'forward' else \
-                                    revcomp(seq_string=reverse_details['query_sequence'],
-                                            blast_primers=True)
+                                    sample[analysistype].results[experiment][contig].reverse_ref = reverse_dict[experiment]
+                                    sample[analysistype].results[experiment][contig].reverse_query = \
+                                        reverse_details['query_sequence'] if \
+                                            direction == 'forward' else \
+                                            revcomp(seq_string=reverse_details['query_sequence'],
+                                                    blast_primers=True)
     return metadata
 
 
@@ -795,53 +801,54 @@ def blast_primer_mismatch_details(metadata, analysistype, iupac):
     :return: List of updated metadata objects
     """
     for sample in metadata:
-        # Only process samples that were investigated with BLAST
-        if os.path.isfile(sample[analysistype].blastresults):
-            for experiment in sample[analysistype].results.datastore:
-                for contig in sample[analysistype].results[experiment].datastore:
-                    # Only samples with the .contig attribute have BLAST results for both forward and reverse primers
-                    try:
+        if sample.general.bestassemblyfile != 'NA':
+            # Only process samples that were investigated with BLAST
+            if os.path.isfile(sample[analysistype].blastresults):
+                for experiment in sample[analysistype].results.datastore:
+                    for contig in sample[analysistype].results[experiment].datastore:
+                        # Only samples with the .contig attribute have BLAST results for both forward and reverse primers
+                        try:
 
-                        # Calculate the mismatch details of the forward primer
-                        try:
-                            sample[analysistype].results[experiment][contig].forward_mismatch_details, \
+                            # Calculate the mismatch details of the forward primer
+                            try:
+                                sample[analysistype].results[experiment][contig].forward_mismatch_details, \
                                 sample[analysistype].results[experiment][contig].forward_query = \
-                                blast_mismatches(ref_primer=sample[analysistype].results[experiment][contig]
-                                                 .forward_ref,
-                                                 query_primer=sample[analysistype].results[experiment][contig]
-                                                 .forward_query,
-                                                 primer_pos_range=sample[analysistype].results[experiment][contig]
-                                                 .forward_pos_range,
-                                                 query_pos_range=sample[analysistype].results[experiment][contig]
-                                                 .forward_range,
-                                                 iupac=iupac,
-                                                 sample=sample,
-                                                 contig=contig,
-                                                 direction=sample[analysistype].results[experiment][contig]
-                                                 .forward_direction)
-                        except AttributeError:
-                            pass
-                        # Reverse primer
-                        try:
-                            sample[analysistype].results[experiment][contig].reverse_mismatch_details, \
+                                    blast_mismatches(ref_primer=sample[analysistype].results[experiment][contig]
+                                                     .forward_ref,
+                                                     query_primer=sample[analysistype].results[experiment][contig]
+                                                     .forward_query,
+                                                     primer_pos_range=sample[analysistype].results[experiment][contig]
+                                                     .forward_pos_range,
+                                                     query_pos_range=sample[analysistype].results[experiment][contig]
+                                                     .forward_range,
+                                                     iupac=iupac,
+                                                     sample=sample,
+                                                     contig=contig,
+                                                     direction=sample[analysistype].results[experiment][contig]
+                                                     .forward_direction)
+                            except AttributeError:
+                                pass
+                            # Reverse primer
+                            try:
+                                sample[analysistype].results[experiment][contig].reverse_mismatch_details, \
                                 sample[analysistype].results[experiment][contig].reverse_query = \
-                                blast_mismatches(ref_primer=sample[analysistype].results[experiment][contig]
-                                                 .reverse_ref,
-                                                 query_primer=sample[analysistype].results[experiment][contig]
-                                                 .reverse_query,
-                                                 primer_pos_range=sample[analysistype].results[experiment][contig]
-                                                 .reverse_pos_range,
-                                                 query_pos_range=sample[analysistype].results[experiment][contig]
-                                                 .reverse_range,
-                                                 iupac=iupac,
-                                                 sample=sample,
-                                                 contig=contig,
-                                                 direction=sample[analysistype].results[experiment][contig]
-                                                 .reverse_direction)
+                                    blast_mismatches(ref_primer=sample[analysistype].results[experiment][contig]
+                                                     .reverse_ref,
+                                                     query_primer=sample[analysistype].results[experiment][contig]
+                                                     .reverse_query,
+                                                     primer_pos_range=sample[analysistype].results[experiment][contig]
+                                                     .reverse_pos_range,
+                                                     query_pos_range=sample[analysistype].results[experiment][contig]
+                                                     .reverse_range,
+                                                     iupac=iupac,
+                                                     sample=sample,
+                                                     contig=contig,
+                                                     direction=sample[analysistype].results[experiment][contig]
+                                                     .reverse_direction)
+                            except AttributeError:
+                                pass
                         except AttributeError:
                             pass
-                    except AttributeError:
-                        pass
     return metadata
 
 
@@ -920,7 +927,7 @@ def extract_sequence(sample, contig, query_pos_range, front_padding, end_padding
     return query_sequence
 
 
-def amplicon_write(metadata, analysistype, reportpath,):
+def amplicon_write(metadata, analysistype, reportpath, ):
     """
     Write the amplicons to file
     :param metadata: List of metadata objects
@@ -930,21 +937,22 @@ def amplicon_write(metadata, analysistype, reportpath,):
     logging.info('Creating amplicon files')
     with open(os.path.join(reportpath, 'alleles.fasta'), 'w') as alleles:
         for sample in metadata:
-            for experiment in sample[analysistype].results.datastore:
-                for contig in sample[analysistype].results[experiment].datastore:
-                    # Ensure that the sequence attribute exists
-                    try:
-                        # Create a SeqRecord from the sequence
-                        seq_record = SeqRecord(seq=Seq(sample[analysistype].results[experiment][contig].sequence),
-                                               id='{sn}_{header}'
-                                               .format(sn=sample.name,
-                                                       header=sample[analysistype].results[experiment][contig].header),
-                                               name='',
-                                               description='')
-                        # Use SeqIO to write the SeqRecord to file
-                        SeqIO.write(seq_record, alleles, 'fasta')
-                    except AttributeError:
-                        pass
+            if sample.general.bestassemblyfile != 'NA':
+                for experiment in sample[analysistype].results.datastore:
+                    for contig in sample[analysistype].results[experiment].datastore:
+                        # Ensure that the sequence attribute exists
+                        try:
+                            # Create a SeqRecord from the sequence
+                            seq_record = SeqRecord(seq=Seq(sample[analysistype].results[experiment][contig].sequence),
+                                                   id='{sn}_{header}'
+                                                   .format(sn=sample.name,
+                                                           header=sample[analysistype].results[experiment][contig].header),
+                                                   name='',
+                                                   description='')
+                            # Use SeqIO to write the SeqRecord to file
+                            SeqIO.write(seq_record, alleles, 'fasta')
+                        except AttributeError:
+                            pass
 
 
 def best_hits_singletons(metadata, analysistype):
@@ -955,55 +963,56 @@ def best_hits_singletons(metadata, analysistype):
     :return: Update list of metadata objects
     """
     for sample in metadata:
-        # If the best_hits dictionary is empty, there were no amplicons produced by any of the primer sets for this
-        # sample
-        if not sample[analysistype].best_hits:
-            # Initialise a dictionary to store the hit information
-            overlaps = dict()
-            for experiment in sample[analysistype].results.datastore:
-                for contig in sample[analysistype].results[experiment].datastore:
-                    # Process the forward and reverse primers to allow for the attribute names to not exist
-                    if sample[analysistype].results[experiment][contig].direction == 'forward':
-                        # As the total_mismatch attribute was initialised as an empty string, typecasting it to an
-                        # int will cause a ValueError to be raised
-                        try:
-                            # Use the .forward_mismatch attribute to set the .total_match
-                            sample[analysistype].results[experiment][contig].total_mismatch = \
-                                int(sample[analysistype].results[experiment][contig].forward_mismatch)
-                            # Use the .forward_range to set the amplicon_range
-                            sample[analysistype].results[experiment][contig].amplicon_range = \
-                                sample[analysistype].results[experiment][contig].forward_range
-                            # Update the overlap dictionary, and the overlap boolean
-                            overlaps = \
-                                best_matcher(overlaps=overlaps,
-                                             amplicon_range=sample[analysistype].results[experiment][
-                                                      contig].amplicon_range,
-                                             total_mismatch=sample[analysistype].results[
-                                                      experiment][contig].total_mismatch,
-                                             experiment=experiment,
-                                             contig=contig)
-                        except ValueError:
-                            pass
-                    # Reverse primer - same as above, but with the appropriately named attributes
-                    else:
-                        try:
-                            sample[analysistype].results[experiment][contig].total_mismatch = \
-                                int(sample[analysistype].results[experiment][contig].reverse_mismatch)
-                            sample[analysistype].results[experiment][contig].amplicon_range = \
-                                sample[analysistype].results[experiment][contig].reverse_range
-                            overlaps = \
-                                best_matcher(overlaps=overlaps,
-                                             amplicon_range=sample[analysistype].results[experiment][
-                                                      contig].amplicon_range,
-                                             total_mismatch=sample[analysistype].results[
-                                                      experiment][contig].total_mismatch,
-                                             experiment=experiment,
-                                             contig=contig)
-                        except ValueError:
-                            pass
-                    # Update the best_hits dictionary if overlaps exists
-                    if overlaps:
-                        sample[analysistype].best_hits = overlaps
+        if sample.general.bestassemblyfile != 'NA':
+            # If the best_hits dictionary is empty, there were no amplicons produced by any of the primer sets for this
+            # sample
+            if not sample[analysistype].best_hits:
+                # Initialise a dictionary to store the hit information
+                overlaps = dict()
+                for experiment in sample[analysistype].results.datastore:
+                    for contig in sample[analysistype].results[experiment].datastore:
+                        # Process the forward and reverse primers to allow for the attribute names to not exist
+                        if sample[analysistype].results[experiment][contig].direction == 'forward':
+                            # As the total_mismatch attribute was initialised as an empty string, typecasting it to an
+                            # int will cause a ValueError to be raised
+                            try:
+                                # Use the .forward_mismatch attribute to set the .total_match
+                                sample[analysistype].results[experiment][contig].total_mismatch = \
+                                    int(sample[analysistype].results[experiment][contig].forward_mismatch)
+                                # Use the .forward_range to set the amplicon_range
+                                sample[analysistype].results[experiment][contig].amplicon_range = \
+                                    sample[analysistype].results[experiment][contig].forward_range
+                                # Update the overlap dictionary, and the overlap boolean
+                                overlaps = \
+                                    best_matcher(overlaps=overlaps,
+                                                 amplicon_range=sample[analysistype].results[experiment][
+                                                     contig].amplicon_range,
+                                                 total_mismatch=sample[analysistype].results[
+                                                     experiment][contig].total_mismatch,
+                                                 experiment=experiment,
+                                                 contig=contig)
+                            except ValueError:
+                                pass
+                        # Reverse primer - same as above, but with the appropriately named attributes
+                        else:
+                            try:
+                                sample[analysistype].results[experiment][contig].total_mismatch = \
+                                    int(sample[analysistype].results[experiment][contig].reverse_mismatch)
+                                sample[analysistype].results[experiment][contig].amplicon_range = \
+                                    sample[analysistype].results[experiment][contig].reverse_range
+                                overlaps = \
+                                    best_matcher(overlaps=overlaps,
+                                                 amplicon_range=sample[analysistype].results[experiment][
+                                                     contig].amplicon_range,
+                                                 total_mismatch=sample[analysistype].results[
+                                                     experiment][contig].total_mismatch,
+                                                 experiment=experiment,
+                                                 contig=contig)
+                            except ValueError:
+                                pass
+                        # Update the best_hits dictionary if overlaps exists
+                        if overlaps:
+                            sample[analysistype].best_hits = overlaps
     return metadata
 
 
@@ -1125,21 +1134,22 @@ class VtyperIP(object):
         Create a sample-specific list of all toxins
         """
         for sample in self.metadata:
-            sample[self.analysistype].toxinprofile = 'ND'
-            # Create a set to store all the unique results
-            toxin_set = set()
-            for contig, amplicon_dict in sample[self.analysistype].best_hits.items():
-                # Iterate over all the best primer hits for a range
-                for amplicon_range, hit_dict in amplicon_dict.items():
-                    # Remove the primer numbering information, and add the cleaned toxin to the set
-                    # e.g. vtx1a_0_0;vtx1c_0_0;vtx2d_1_2;vtx2d_1_3 becomes {vtx1a, vtx1c, vtx2d}
-                    if not os.path.isfile(sample[self.analysistype].blastresults):
-                        toxin_set.add(hit_dict['experiment'].split('_')[0])
-                    # Add an asterisk if the hit was derived from BLAST-based analyses
-                    else:
-                        toxin_set.add(hit_dict['experiment'].split('_')[0] + '*')
-                # Create a string of the entries in the sorted list of toxins joined with ";"
-                sample[self.analysistype].toxinprofile = ";".join(sorted(list(toxin_set))) if toxin_set else 'ND'
+            if sample.general.bestassemblyfile != 'NA':
+                sample[self.analysistype].toxinprofile = 'ND'
+                # Create a set to store all the unique results
+                toxin_set = set()
+                for contig, amplicon_dict in sample[self.analysistype].best_hits.items():
+                    # Iterate over all the best primer hits for a range
+                    for amplicon_range, hit_dict in amplicon_dict.items():
+                        # Remove the primer numbering information, and add the cleaned toxin to the set
+                        # e.g. vtx1a_0_0;vtx1c_0_0;vtx2d_1_2;vtx2d_1_3 becomes {vtx1a, vtx1c, vtx2d}
+                        if not os.path.isfile(sample[self.analysistype].blastresults):
+                            toxin_set.add(hit_dict['experiment'].split('_')[0])
+                        # Add an asterisk if the hit was derived from BLAST-based analyses
+                        else:
+                            toxin_set.add(hit_dict['experiment'].split('_')[0] + '*')
+                    # Create a string of the entries in the sorted list of toxins joined with ";"
+                    sample[self.analysistype].toxinprofile = ";".join(sorted(list(toxin_set))) if toxin_set else 'ND'
 
     def vtyper_report(self):
         """
@@ -1149,10 +1159,11 @@ class VtyperIP(object):
         with open(os.path.join(self.reportpath, '{at}.csv'.format(at=self.analysistype)), 'w') as report:
             data = 'Strain,ToxinProfile\n'
             for sample in self.metadata:
-                data += '{sn},{tp}\n'.format(sn=sample.name,
-                                             tp=sample[self.analysistype].toxinprofile)
-            # Write the data to the report
-            report.write(data)
+                if sample.general.bestassemblyfile != 'NA':
+                    data += '{sn},{tp}\n'.format(sn=sample.name,
+                                                 tp=sample[self.analysistype].toxinprofile)
+                # Write the data to the report
+                report.write(data)
 
     def __init__(self, metadataobject, analysistype, reportpath, mismatches=3):
         self.metadata = metadataobject
@@ -1261,68 +1272,72 @@ class CustomIP(object):
                    'ForwardMismatchDetails,ForwardLength,ReverseMismatches,ReverseMismatchDetails,ReverseLength,' \
                    'ForwardPrimer,ForwardQuery,ReversePrimer,ReverseQuery\n'
             for sample in self.metadata:
-                results = False
-                for experiment in sample[self.analysistype].results.datastore:
-                    for contig in sample[self.analysistype].results[experiment].datastore:
-                        results = True
-                        location = str()
-                        # Ensure that the .blastresults attribute has been created
-                        sample[self.analysistype].blastresults = '{of}_blast_results.tsv' \
-                            .format(of=os.path.join(sample.general.outputdirectory, sample.name))
-                        if not os.path.isfile(sample[self.analysistype].blastresults):
-                            if sample[self.analysistype].results[experiment][contig].direction == 'forward':
-                                location = '{forward}-{reverse}'.format(
-                                    forward=sample[self.analysistype].results[experiment][contig].forward_pos,
-                                    reverse=str(int(sample[self.analysistype].results[experiment][contig].reverse_pos) +
-                                                len(sample[self.analysistype].results[experiment][contig]
-                                                    .reverse_query))
-                                )
+                if sample.general.bestassemblyfile != 'NA':
+                    results = False
+                    for experiment in sample[self.analysistype].results.datastore:
+                        for contig in sample[self.analysistype].results[experiment].datastore:
+                            results = True
+                            location = str()
+                            # Ensure that the .blastresults attribute has been created
+                            sample[self.analysistype].blastresults = '{of}_blast_results.tsv' \
+                                .format(of=os.path.join(sample.general.outputdirectory, sample.name))
+                            if not os.path.isfile(sample[self.analysistype].blastresults):
+                                if sample[self.analysistype].results[experiment][contig].direction == 'forward':
+                                    location = '{forward}-{reverse}'.format(
+                                        forward=sample[self.analysistype].results[experiment][contig].forward_pos,
+                                        reverse=str(int(sample[self.analysistype].results[experiment][contig].reverse_pos) +
+                                                    len(sample[self.analysistype].results[experiment][contig]
+                                                        .reverse_query))
+                                    )
+                                else:
+                                    location = '{reverse}-{forward}'.format(
+                                        reverse=sample[self.analysistype].results[experiment][contig].reverse_pos,
+                                        forward=str(int(sample[self.analysistype].results[experiment][contig].forward_pos) +
+                                                    len(sample[self.analysistype].results[experiment][contig]
+                                                        .forward_query))
+                                    )
                             else:
-                                location = '{reverse}-{forward}'.format(
-                                    reverse=sample[self.analysistype].results[experiment][contig].reverse_pos,
-                                    forward=str(int(sample[self.analysistype].results[experiment][contig].forward_pos) +
-                                                len(sample[self.analysistype].results[experiment][contig]
-                                                    .forward_query))
-                                )
-                        else:
-                            if sample[self.analysistype].results[experiment][contig].direction == 'forward':
-                                if location:
-                                    location += ';'
-                                location += 'forward_{forward}-{reverse}'.format(
-                                    forward=sample[self.analysistype].results[experiment][contig].forward_range[0],
-                                    reverse=sample[self.analysistype].results[experiment][contig].forward_range[-1]
-                                )
-                            else:
-                                if location:
-                                    location += ';'
-                                location += 'reverse_{forward}-{reverse}'.format(
-                                    forward=sample[self.analysistype].results[experiment][contig].reverse_range[0],
-                                    reverse=sample[self.analysistype].results[experiment][contig].reverse_range[-1]
-                                )
-                        data += \
-                            '{sn},{gene},{contig},{loc},{amplicon_size},{orientation},{f_mm},{f_md},{f_l},{r_mm},' \
-                            '{r_md},{r_l},{fp},{fq},{rp},{rq}\n' \
-                            .format(sn=sample.name,
-                                    gene=sample[self.analysistype].results[experiment][contig].primer_set,
-                                    contig=sample[self.analysistype].results[experiment][contig].contig.replace(
-                                        '(unmasked)', ''),
-                                    loc=location,
-                                    amplicon_size=sample[self.analysistype].results[experiment][contig].amplicon_length,
-                                    orientation=sample[self.analysistype].results[experiment][contig].direction,
-                                    f_mm=sample[self.analysistype].results[experiment][contig].forward_mismatch,
-                                    f_md=sample[self.analysistype].results[experiment][contig].forward_mismatch_details,
-                                    f_l=len(sample[self.analysistype].results[experiment][contig].forward_ref),
-                                    r_mm=sample[self.analysistype].results[experiment][contig].reverse_mismatch,
-                                    r_md=sample[self.analysistype].results[experiment][contig].reverse_mismatch_details,
-                                    r_l=len(sample[self.analysistype].results[experiment][contig].reverse_ref),
-                                    fp=sample[self.analysistype].results[experiment][contig].forward_ref,
-                                    fq=sample[self.analysistype].results[experiment][contig].forward_query,
-                                    rp=sample[self.analysistype].results[experiment][contig].reverse_ref,
-                                    rq=sample[self.analysistype].results[experiment][contig].reverse_query)
-                    if not results:
-                        # If there were no amplicons, add the sample name and nothing else
-                        data += '{sn}\n'.format(sn=sample.name)
-            report.write(data)
+                                if sample[self.analysistype].results[experiment][contig].direction == 'forward':
+                                    if location:
+                                        location += ';'
+                                    location += 'forward_{forward}-{reverse}'.format(
+                                        forward=sample[self.analysistype].results[experiment][contig].forward_range[0],
+                                        reverse=sample[self.analysistype].results[experiment][contig].forward_range[-1]
+                                    )
+                                else:
+                                    if location:
+                                        location += ';'
+                                    location += 'reverse_{forward}-{reverse}'.format(
+                                        forward=sample[self.analysistype].results[experiment][contig].reverse_range[0],
+                                        reverse=sample[self.analysistype].results[experiment][contig].reverse_range[-1]
+                                    )
+                            data += \
+                                '{sn},{gene},{contig},{loc},{amplicon_size},{orientation},{f_mm},{f_md},{f_l},{r_mm},' \
+                                '{r_md},{r_l},{fp},{fq},{rp},{rq}\n' \
+                                    .format(sn=sample.name,
+                                            gene=sample[self.analysistype].results[experiment][contig].primer_set,
+                                            contig=sample[self.analysistype].results[experiment][contig].contig.replace(
+                                                '(unmasked)', ''),
+                                            loc=location,
+                                            amplicon_size=sample[self.analysistype].results[experiment][
+                                                contig].amplicon_length,
+                                            orientation=sample[self.analysistype].results[experiment][contig].direction,
+                                            f_mm=sample[self.analysistype].results[experiment][contig].forward_mismatch,
+                                            f_md=sample[self.analysistype].results[experiment][
+                                                contig].forward_mismatch_details,
+                                            f_l=len(sample[self.analysistype].results[experiment][contig].forward_ref),
+                                            r_mm=sample[self.analysistype].results[experiment][contig].reverse_mismatch,
+                                            r_md=sample[self.analysistype].results[experiment][
+                                                contig].reverse_mismatch_details,
+                                            r_l=len(sample[self.analysistype].results[experiment][contig].reverse_ref),
+                                            fp=sample[self.analysistype].results[experiment][contig].forward_ref,
+                                            fq=sample[self.analysistype].results[experiment][contig].forward_query,
+                                            rp=sample[self.analysistype].results[experiment][contig].reverse_ref,
+                                            rq=sample[self.analysistype].results[experiment][contig].reverse_query)
+                        if not results:
+                            # If there were no amplicons, add the sample name and nothing else
+                            data += '{sn}\n'.format(sn=sample.name)
+                report.write(data)
 
     def __init__(self, metadataobject, sequencepath, reportpath, primerfile, min_amplicon_size, max_amplicon_size,
                  primer_format, mismatches=2, export_amplicons=False, contigbreaks=False, range_buffer=0):
