@@ -410,13 +410,13 @@ def best_hit(metadata, analysistype, range_buffer=0):
                 sample[analysistype].best_hits = dict()
             for experiment in sample[analysistype].results.datastore:
                 for contig in sample[analysistype].results[experiment].datastore:
-                    # Ensure that the amplicon_range attribute exists - happens when the method is used for singleton BLAST
-                    # analyses
+                    # Ensure that the amplicon_range attribute exists; happens when the method is used for singleton
+                    # BLAST analyses
                     try:
                         amplicon_range = sample[analysistype].results[experiment][contig].amplicon_range
                         # Ensure that the dictionary has been created
                         if overlaps:
-                            # Create a boolean to track if the current primer set overlaps with any other in the dictionary
+                            # Create a boolean to track if the current primer set overlaps with any other in the dict
                             overlap = False
                             # Iterate through all the previous ranges: dictionaries in the overlaps dictionary
                             try:
@@ -430,16 +430,16 @@ def best_hit(metadata, analysistype, range_buffer=0):
                                              min(buffered_max, ranges[-1]) + 1):
                                         # Set the overlap boolean to True
                                         overlap = True
-                                        # If the current primer set has fewer mismatches than the previous best primer set
-                                        # for this range, replace the details in the overlap dictionary with the details
-                                        # from the current set
+                                        # If the current primer set has fewer mismatches than the previous best primer
+                                        # set for this range, replace the details in the overlap dictionary with the
+                                        # details from the current set
                                         if sample[analysistype].results[experiment][contig].total_mismatch < \
                                                 overlap_dict['mismatches']:
-                                            overlap_dict['mismatches'] = sample[analysistype].results[experiment][contig].\
-                                                total_mismatch
+                                            overlap_dict['mismatches'] = \
+                                                sample[analysistype].results[experiment][contig].total_mismatch
                                             overlap_dict['experiment'] = experiment
-                                # If the current range does not overlap with any previous primer sets, add this range and
-                                # details to the dictionary
+                                # If the current range does not overlap with any previous primer sets, add this range
+                                # and details to the dictionary
                                 if not overlap:
                                     overlaps[contig][amplicon_range] = {
                                         'mismatches': sample[analysistype].results[experiment][contig].total_mismatch,
@@ -456,8 +456,8 @@ def best_hit(metadata, analysistype, range_buffer=0):
                         # If this is the first sample, populate the dictionary
                         else:
                             overlaps[contig] = dict()
-                            # Set the amplicon range as the key for an additional dictionary containing total mismatches and
-                            # experiment name
+                            # Set the amplicon range as the key for an additional dictionary containing total
+                            # mismatches and experiment name
                             overlaps[contig][amplicon_range] = {
                                 'mismatches': sample[analysistype].results[experiment][contig].total_mismatch,
                                 'experiment': experiment
@@ -558,8 +558,8 @@ def run_blast(metadata, analysistype, formattedprimers, blastheader, threads):
             if not sample[analysistype].results.datastore and not os.path.isfile(sample[analysistype].blastresults):
                 db = os.path.splitext(formattedprimers)[0]
                 # BLAST command line call. Note the high number of alignments.
-                # Due to the fact that all the targets are combined into one database, this is to ensure that all potential
-                # alignments are reported. Also note the custom outfmt. Using very permissive BLAST settings (word_size: 4,
+                # Because all the targets are combined into one database, this is to ensure that all potential
+                # alignments are reported. Note the custom outfmt. Using very permissive BLAST settings (word_size: 4,
                 # dust:'no', penalty: -1, and task: 'blastn-short' to allow BLAST to return results even with the short
                 # primer input sequences)
                 blastn = NcbiblastnCommandline(query=sample.general.bestassemblyfile,
@@ -664,8 +664,8 @@ def parse_blast(metadata, analysistype, fieldnames, forward_dict, reverse_dict, 
                 # Iterate through hit_dict
                 for experiment, contig_dict in hit_dict.items():
                     for contig, detail_dict in contig_dict.items():
-                        # Only continue if the detail_dict has a length of two (positive hits for both forward and reverse
-                        # primers), unless searching for singletons
+                        # Only continue if the detail_dict has a length of two (positive hits for both forward and
+                        # reverse primers), unless searching for singletons
                         if len(detail_dict) >= min_hits:
                             # Initialise the experiment GenObject
                             if not GenObject.isattr(sample[analysistype].results, experiment):
@@ -684,7 +684,7 @@ def parse_blast(metadata, analysistype, fieldnames, forward_dict, reverse_dict, 
                                         else:
                                             sample[analysistype].results[experiment][contig].contig = \
                                                 'forward_' + forward_details['query_id']
-                                    # Otherwise create and populate the attribute with 'forward_' and the extracted query_id
+                                    # Otherwise create and populate the attribute with 'forward_' and the query_id
                                     except AttributeError:
                                         sample[analysistype].results[experiment][contig].contig = \
                                             'forward_' + forward_details['query_id']
@@ -701,7 +701,7 @@ def parse_blast(metadata, analysistype, fieldnames, forward_dict, reverse_dict, 
                                         max(int(forward_details['subject_start']),
                                             int(forward_details['subject_end'])),
                                         ]
-                                    # Create an attribute to store the range over which the primer hit the query sequence
+                                    # Create an attribute to store the range over which the primer hit the query seq
                                     sample[analysistype].results[experiment][contig].forward_range = \
                                         range(
                                             min(int(forward_details['query_start']),
@@ -709,12 +709,12 @@ def parse_blast(metadata, analysistype, fieldnames, forward_dict, reverse_dict, 
                                             max(int(forward_details['query_start']),
                                                 int(forward_details['query_end']))
                                           )
-                                    # Calculate the number of mismatches by subtracting the total number of positives from
-                                    # the total length of the primer sequence
+                                    # Calculate the number of mismatches by subtracting the total number of positives
+                                    # from the total length of the primer sequence
                                     sample[analysistype].results[experiment][contig].forward_mismatch = \
                                         len(forward_dict[experiment]) - int(forward_details['positives'])
-                                    # Determine if the hit was on the forward or reverse strand. Hits on the forward strand
-                                    # will have a subject_start before the subject_end (opposite for hits on the
+                                    # Determine if the hit was on the forward or reverse strand. Hits on the forward
+                                    # strand will have a subject_start before the subject_end (opposite for hits on the
                                     # rev strand) e.g. start: 4, end 20 for hits on the forward strand
                                     direction = 'forward' if int(forward_details['subject_start']) < int(
                                         forward_details['subject_end']) else 'revcomp'
@@ -732,9 +732,10 @@ def parse_blast(metadata, analysistype, fieldnames, forward_dict, reverse_dict, 
                                             'forward_' + direction
                                     # The forward_ref attribute is the sequence of the forward primer extracted from
                                     # forward_dict
-                                    sample[analysistype].results[experiment][contig].forward_ref = forward_dict[experiment]
-                                    # Extract the sequence of the query. Use the extracted 'query_sequence' if the hit is
-                                    # on the forward strand, otherwise, calculate the reverse complement
+                                    sample[analysistype].results[experiment][contig].forward_ref = \
+                                        forward_dict[experiment]
+                                    # Extract the sequence of the query. Use the extracted 'query_sequence' if the hit
+                                    # is on the forward strand, otherwise, calculate the reverse complement
                                     sample[analysistype].results[experiment][contig].forward_query = \
                                         forward_details['query_sequence'] if \
                                         direction == 'forward' else \
@@ -786,7 +787,8 @@ def parse_blast(metadata, analysistype, fieldnames, forward_dict, reverse_dict, 
                                     except AttributeError:
                                         sample[analysistype].results[experiment][contig].direction \
                                             = 'reverse_' + direction
-                                    sample[analysistype].results[experiment][contig].reverse_ref = reverse_dict[experiment]
+                                    sample[analysistype].results[experiment][contig].reverse_ref = \
+                                        reverse_dict[experiment]
                                     sample[analysistype].results[experiment][contig].reverse_query = \
                                         reverse_details['query_sequence'] if \
                                         direction == 'forward' else \
@@ -809,7 +811,7 @@ def blast_primer_mismatch_details(metadata, analysistype, iupac):
             if os.path.isfile(sample[analysistype].blastresults):
                 for experiment in sample[analysistype].results.datastore:
                     for contig in sample[analysistype].results[experiment].datastore:
-                        # Only samples with the .contig attribute have BLAST results for both forward and reverse primers
+                        # Only samples with the .contig attribute have BLAST results for forward and reverse primers
                         try:
 
                             # Calculate the mismatch details of the forward primer
@@ -949,7 +951,8 @@ def amplicon_write(metadata, analysistype, reportpath,):
                             seq_record = SeqRecord(seq=Seq(sample[analysistype].results[experiment][contig].sequence),
                                                    id='{sn}_{header}'
                                                    .format(sn=sample.name,
-                                                           header=sample[analysistype].results[experiment][contig].header),
+                                                           header=sample[analysistype].results[experiment][contig]
+                                                           .header),
                                                    name='',
                                                    description='')
                             # Use SeqIO to write the SeqRecord to file
@@ -1310,68 +1313,78 @@ class CustomIP(object):
                    'ForwardMismatchDetails,ForwardLength,ReverseMismatches,ReverseMismatchDetails,ReverseLength,' \
                    'ForwardPrimer,ForwardQuery,ReversePrimer,ReverseQuery\n'
             for sample in self.metadata:
-                if sample.general.bestassemblyfile != 'NA':
-                    results = False
-                    for experiment in sample[self.analysistype].results.datastore:
-                        for contig in sample[self.analysistype].results[experiment].datastore:
-                            results = True
-                            location = str()
-                            # Ensure that the .blastresults attribute has been created
-                            sample[self.analysistype].blastresults = '{of}_blast_results.tsv' \
-                                .format(of=os.path.join(sample.general.outputdirectory, sample.name))
-                            if not os.path.isfile(sample[self.analysistype].blastresults):
-                                if sample[self.analysistype].results[experiment][contig].direction == 'forward':
-                                    location = '{forward}-{reverse}'.format(
-                                        forward=sample[self.analysistype].results[experiment][contig].forward_pos,
-                                        reverse=str(int(sample[self.analysistype].results[experiment][contig].reverse_pos) +
-                                                    len(sample[self.analysistype].results[experiment][contig]
-                                                        .reverse_query))
-                                    )
-                                else:
-                                    location = '{reverse}-{forward}'.format(
-                                        reverse=sample[self.analysistype].results[experiment][contig].reverse_pos,
-                                        forward=str(int(sample[self.analysistype].results[experiment][contig].forward_pos) +
-                                                    len(sample[self.analysistype].results[experiment][contig]
-                                                        .forward_query))
-                                    )
+                results = False
+                for experiment in sample[self.analysistype].results.datastore:
+                    for contig in sample[self.analysistype].results[experiment].datastore:
+                        results = True
+                        location = str()
+                        # Ensure that the .blastresults attribute has been created
+                        sample[self.analysistype].blastresults = '{of}_blast_results.tsv' \
+                            .format(of=os.path.join(sample.general.outputdirectory, sample.name))
+                        if not os.path.isfile(sample[self.analysistype].blastresults):
+                            if sample[self.analysistype].results[experiment][contig].direction == 'forward':
+                                location = '{forward}-{reverse}'.format(
+                                    forward=sample[self.analysistype].results[experiment][contig].forward_pos,
+                                    reverse=str(int(sample[self.analysistype].results[experiment][contig]
+                                                    .reverse_pos) +
+                                                len(sample[self.analysistype].results[experiment][contig]
+                                                    .reverse_query))
+                                )
                             else:
-                                if sample[self.analysistype].results[experiment][contig].direction == 'forward':
-                                    if location:
-                                        location += ';'
-                                    location += 'forward_{forward}-{reverse}'.format(
-                                        forward=sample[self.analysistype].results[experiment][contig].forward_range[0],
-                                        reverse=sample[self.analysistype].results[experiment][contig].forward_range[-1]
-                                    )
-                                else:
-                                    if location:
-                                        location += ';'
-                                    location += 'reverse_{forward}-{reverse}'.format(
-                                        forward=sample[self.analysistype].results[experiment][contig].reverse_range[0],
-                                        reverse=sample[self.analysistype].results[experiment][contig].reverse_range[-1]
-                                    )
-                            data += \
-                                '{sn},{gene},{contig},{loc},{amplicon_size},{orientation},{f_mm},{f_md},{f_l},{r_mm},' \
-                                '{r_md},{r_l},{fp},{fq},{rp},{rq}\n' \
-                                .format(sn=sample.name,
-                                        gene=sample[self.analysistype].results[experiment][contig].primer_set,
-                                        contig=sample[self.analysistype].results[experiment][contig].contig.replace(
-                                            '(unmasked)', ''),
-                                        loc=location,
-                                        amplicon_size=sample[self.analysistype].results[experiment][contig].amplicon_length,
-                                        orientation=sample[self.analysistype].results[experiment][contig].direction,
-                                        f_mm=sample[self.analysistype].results[experiment][contig].forward_mismatch,
-                                        f_md=sample[self.analysistype].results[experiment][contig].forward_mismatch_details,
-                                        f_l=len(sample[self.analysistype].results[experiment][contig].forward_ref),
-                                        r_mm=sample[self.analysistype].results[experiment][contig].reverse_mismatch,
-                                        r_md=sample[self.analysistype].results[experiment][contig].reverse_mismatch_details,
-                                        r_l=len(sample[self.analysistype].results[experiment][contig].reverse_ref),
-                                        fp=sample[self.analysistype].results[experiment][contig].forward_ref,
-                                        fq=sample[self.analysistype].results[experiment][contig].forward_query,
-                                        rp=sample[self.analysistype].results[experiment][contig].reverse_ref,
-                                        rq=sample[self.analysistype].results[experiment][contig].reverse_query)
-                        if not results:
-                            # If there were no amplicons, add the sample name and nothing else
-                            data += '{sn}\n'.format(sn=sample.name)
+                                location = '{reverse}-{forward}'.format(
+                                    reverse=sample[self.analysistype].results[experiment][contig].reverse_pos,
+                                    forward=str(int(sample[self.analysistype].results[experiment][contig]
+                                                    .forward_pos) +
+                                                len(sample[self.analysistype].results[experiment][contig]
+                                                    .forward_query))
+                                )
+                        else:
+                            if sample[self.analysistype].results[experiment][contig].direction == 'forward':
+                                if location:
+                                    location += ';'
+                                location += 'forward_{forward}-{reverse}'.format(
+                                    forward=sample[self.analysistype].results[experiment][contig].forward_range[0],
+                                    reverse=sample[self.analysistype].results[experiment][contig].forward_range[-1]
+                                )
+                            else:
+                                if location:
+                                    location += ';'
+                                location += 'reverse_{forward}-{reverse}'.format(
+                                    forward=sample[self.analysistype].results[experiment][contig].reverse_range[0],
+                                    reverse=sample[self.analysistype].results[experiment][contig].reverse_range[-1]
+                                )
+                        sample[self.analysistype].results[experiment][contig].location = location
+                        sample[self.analysistype].results[experiment][contig].start_pos = list()
+                        sample[self.analysistype].results[experiment][contig].stop_pos = list()
+                        for loc in location.split(';'):
+                            sample[self.analysistype].results[experiment][contig].start_pos.append(loc.split('-')[0])
+                            sample[self.analysistype].results[experiment][contig].stop_pos.append(loc.split('-')[1])
+                        data += \
+                            '{sn},{gene},{contig},{loc},{amplicon_size},{orientation},{f_mm},{f_md},{f_l},{r_mm},' \
+                            '{r_md},{r_l},{fp},{fq},{rp},{rq}\n' \
+                            .format(sn=sample.name,
+                                    gene=sample[self.analysistype].results[experiment][contig].primer_set,
+                                    contig=sample[self.analysistype].results[experiment][contig].contig.replace(
+                                        '(unmasked)', ''),
+                                    loc=location,
+                                    amplicon_size=sample[self.analysistype].results[experiment][contig]
+                                    .amplicon_length,
+                                    orientation=sample[self.analysistype].results[experiment][contig].direction,
+                                    f_mm=sample[self.analysistype].results[experiment][contig].forward_mismatch,
+                                    f_md=sample[self.analysistype].results[experiment][contig]
+                                    .forward_mismatch_details,
+                                    f_l=len(sample[self.analysistype].results[experiment][contig].forward_ref),
+                                    r_mm=sample[self.analysistype].results[experiment][contig].reverse_mismatch,
+                                    r_md=sample[self.analysistype].results[experiment][contig]
+                                    .reverse_mismatch_details,
+                                    r_l=len(sample[self.analysistype].results[experiment][contig].reverse_ref),
+                                    fp=sample[self.analysistype].results[experiment][contig].forward_ref,
+                                    fq=sample[self.analysistype].results[experiment][contig].forward_query,
+                                    rp=sample[self.analysistype].results[experiment][contig].reverse_ref,
+                                    rq=sample[self.analysistype].results[experiment][contig].reverse_query)
+                    if not results:
+                        # If there were no amplicons, add the sample name and nothing else
+                        data += '{sn}\n'.format(sn=sample.name)
             report.write(data)
 
     def __init__(self, metadataobject, sequencepath, reportpath, primerfile, min_amplicon_size, max_amplicon_size,
@@ -1518,7 +1531,7 @@ def cli():
                         reportpath=os.path.join(arguments.sequencepath, 'reports'))
         epcr.vtyper()
     else:
-        arguments.runmetadata = MetadataObject()
+        # arguments.runmetadata = MetadataObject()
         epcr = CustomIP(metadataobject=arguments.runmetadata,
                         sequencepath=arguments.sequencepath,
                         reportpath=os.path.join(arguments.sequencepath, 'reports'),

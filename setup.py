@@ -1,8 +1,18 @@
+#!/usr/bin/env python
 from setuptools import setup, find_packages
+from distutils.util import convert_path
+import os
+__author__ = 'adamkoziol'
+
+# Find the version
+version = dict()
+with open(convert_path(os.path.join('genemethods', 'version.py')), 'r') as version_file:
+    exec(version_file.read(), version)
+
 
 setup(
     name="genemethods",
-    version="0.0.0.59",
+    version=version['__version__'],
     packages=find_packages(),
     entry_points={
         'console_scripts': [

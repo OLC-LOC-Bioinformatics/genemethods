@@ -504,7 +504,7 @@ class Filer(object):
         else:
             args.sequencepath = os.path.abspath(os.path.join(args.sequencepath))
         # Find all the sequence files in the path
-        fastas = sorted(glob(os.path.join(args.sequencepath, '*.fa*')))
+        fastas = sorted(glob(os.path.join(args.sequencepath, '*.*fa*')))
         for fasta in fastas:
             # Create a metadata object for each sample
             metadata = MetadataObject()
@@ -514,6 +514,7 @@ class Filer(object):
             metadata.commands = GenObject()
             metadata.general.bestassemblyfile = fasta
             metadata.general.outputdirectory = os.path.join(args.sequencepath, metadata.name)
+            make_path(metadata.general.outputdirectory)
             samples.append(metadata)
         return samples
 
