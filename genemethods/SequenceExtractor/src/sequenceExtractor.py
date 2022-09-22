@@ -30,6 +30,10 @@ class SequenceExtractor(object):
                     self.details_dict[seqid] = list()
                 # Ensure that the min and max are in order, and subtract one from the start due to zero-indexing
                 start_int = min([int(start), int(stop)]) - 1
+                # If the start position is provided as 0, ensure that it stays at 0, rather than being -1
+                if int(start) != 0:
+                    logging.debug(f'The provided start position, {start} is negative, and has been adjusted to 1')
+                start_int = start_int if start_int >= 0 else 0
                 stop_int = max([int(start), int(stop)])
                 # Initialise a dictionary to store the individual details
                 info_dict = {
@@ -62,39 +66,45 @@ class SequenceExtractor(object):
                 record_present = False
                 # Iterate through all the records in the FASTA file
                 for record in SeqIO.parse(fasta_file, 'fasta'):
-                    if record.id == fasta_details['contig']:
-                        record_present = True
-                        # Ensure that both the specified start and stop positions are within the contig
-                        if fasta_details['start'] not in range(len(record.seq)) and fasta_details['stop'] not in \
-                                range(len(record.seq)):
-                            logging.warning(f'Could not find the specified start position: {fasta_details["start"]} or '
-                                            f'the specified stop position: {fasta_details["stop"]} in '
-                                            f'contig {fasta_details["contig"]} in file {fasta_file}')
-                            continue
-                        # Only the start position is invalid
-                        elif fasta_details['start'] not in range(len(record.seq)):
-                            logging.warning(f'Could not find the specified start position: {fasta_details["start"]} in '
-                                            f'contig {fasta_details["contig"]} in file {fasta_file}')
-                            continue
-                        # Only the stop position is invalid
-                        elif fasta_details['stop'] not in range(len(record.seq)):
-                            logging.warning(f'Could not find the specified stop position: {fasta_details["stop"]} in '
-                                            f'contig {fasta_details["contig"]} in file {fasta_file}')
-                            continue
-                        # Create a new header for the extracted sequence. SEQID_contig_start(plus 1 to match the
-                        # supplied position)_stop
-                        newid = f'{seqid}_{fasta_details["contig"]}_{fasta_details["start"] + 1}_' \
-                                f'{fasta_details["stop"]}'
-                        # Create a record for the extracted sequence
-                        newrecord = SeqRecord(seq=Seq(record.seq[fasta_details['start']:fasta_details['stop']]),
-                                              id=newid,
-                                              name=str(),
-                                              description=str())
-                        logging.debug(f'SEQID: {seqid}, contig: {fasta_details["contig"]}, '
-                                      f'start: {fasta_details["start"] + 1}, stop: {fasta_details["stop"]}, '
-                                      f'sequence: {record.seq[fasta_details["start"]:fasta_details["stop"]]}')
-                        # Add the record to the list of all records
-                        self.newrecords.append(newrecord)
+                    if record.id != fasta_details['contig']:
+                        continue
+                    record_present = True
+                    # Ensure that both the specified start and stop positions are within the contig
+                    if fasta_details['start'] not in range(len(record.seq)) and fasta_details['stop'] not in \
+                            range(len(record.seq)):
+                        logging.warning(f'Could not find the specified start position: {fasta_details["start"]} or '
+                                        f'the specified stop position: {fasta_details["stop"]} in '
+                                        f'contig {fasta_details["contig"]} in file {fasta_file}')
+                        continue
+                    # Only the start position is invalid
+                    elif fasta_details['start'] not in range(len(record.seq)):
+                        logging.warning(f'Could not find the specified start position: {fasta_details["start"]} in '
+                                        f'contig {fasta_details["contig"]} in file {fasta_file}')
+                        continue
+                    # Only the stop position is invalid
+                    elif fasta_details['stop'] not in range(len(record.seq)):
+                        logging.warning(f'Could not find the specified stop position: {fasta_details["stop"]} in '
+                                        f'contig {fasta_details["contig"]} in file {fasta_file}')
+                        continue
+                    # Modify the fasta details dictionary to extract the entire contig if start and stop are 0
+                    if fasta_details['start'] == 0 and fasta_details['stop'] == 0:
+                        fasta_details['stop'] = len(str(record.seq))
+                        logging.debug(f'Setting stop coordinate for SEQID: {seqid}, contig: {fasta_details["contig"]} '
+                                      f'to fasta_details["stop"]')
+                    # Create a new header for the extracted sequence. SEQID_contig_start(plus 1 to match the
+                    # supplied position)_stop
+                    newid = f'{seqid}_{fasta_details["contig"]}_{fasta_details["start"] + 1}_' \
+                            f'{fasta_details["stop"]}'
+                    # Create a record for the extracted sequence
+                    newrecord = SeqRecord(seq=Seq(record.seq[fasta_details['start']:fasta_details['stop']]),
+                                          id=newid,
+                                          name=str(),
+                                          description=str())
+                    logging.debug(f'SEQID: {seqid}, contig: {fasta_details["contig"]}, '
+                                  f'start: {fasta_details["start"] + 1}, stop: {fasta_details["stop"]}, '
+                                  f'sequence: {record.seq[fasta_details["start"]:fasta_details["stop"]]}')
+                    # Add the record to the list of all records
+                    self.newrecords.append(newrecord)
                 if not record_present:
                     logging.warning(f'Could not find {fasta_details["contig"]} in file {fasta_file}')
         # Write the records to the output file

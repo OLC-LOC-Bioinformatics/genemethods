@@ -122,7 +122,8 @@ def test_negative_start():
                            sequencepath=sequencepath)
     se.parse_details()
     se.sequence_extract()
-    assert not se.newrecords
+    assert se.newrecords[0].seq == 'AAAAAAAACAAATATATACTTTGATGATAACTTTCTAAATATCTACAAAA'
+    assert se.newrecords[0].id == '2019-SEQ-0848_Contig_1_149.079_Circ_1_50'
 
 
 def test_out_of_range_end():
@@ -200,6 +201,19 @@ def test_multiple_extractions_one_invalid_contig():
     assert se.newrecords[3].id == '2019-SEQ-0848_Contig_1_149.079_Circ_19_47'
     assert se.newrecords[4].id == '2019-SEQ-1019_Contig_3_52.4575_5_22'
 
+
+def test_multiple_extractions_full_contigs():
+    se = SequenceExtractor(fastadetails=os.path.join(detailspath,
+                                                     'vseqid_vcontig_vstart_vstop_2_seqids_full_contig.txt'),
+                           sequencepath=sequencepath)
+    se.parse_details()
+    se.sequence_extract()
+    assert se.details_dict['2019-SEQ-0848'][0]['start'] == 0
+    assert se.details_dict['2019-SEQ-0848'][1]['start'] == 0
+    assert se.details_dict['2019-SEQ-0848'][1]['stop'] == 6085
+    assert se.details_dict['2019-SEQ-1019'][0]['start'] == 13
+    assert se.details_dict['2019-SEQ-1019'][1]['start'] == 0
+    assert se.details_dict['2019-SEQ-1019'][1]['stop'] == 5153
 
 def test_remove_output():
     shutil.rmtree(outputpath)
