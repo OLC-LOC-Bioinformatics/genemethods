@@ -317,7 +317,7 @@ class Quality(object):
                                                                        trimq=10,
                                                                        minlength=min_len,
                                                                        forcetrimleft=trim_left,
-                                                                       returncmd=True)
+								       returncmd=True)
                             else:
                                 bbdukcall = str()
                                 out = str()
@@ -416,6 +416,31 @@ class Quality(object):
                     pcs=sample.confindr.percent_contam_std
                 )
             csv.write(data)
+
+    def fix_gzip(self):
+        """
+        Unzip and rezip the file to fix issues linked to BBDuk zipping
+        """
+        logging.info('Fixing BBMap gunzip issue')
+        for sample in self.metadata:
+            gzipreads = str()
+            try:
+                fastqfiles = sample.general.trimmedcorrectedfastqfiles
+            except AttributeError:
+                fastqfiles = None
+            if type(fastqfiles) is list:
+                outdir = sample.general.outputdirectory
+                tmp_forward = os.path.join(outdir, '{}_tmp_R1.fastq'.format(sample.name))
+                tmp_reverse = os.path.join(outdir, '{}_tmp_R2.fastq'.format(sample.name))
+            systemcall_f = 'gunzip -c {read} > {tmp} && gzip -c {tmp} > {read} && rm {tmp}*'.format(read=fastqfiles[0], tmp=tmp_forward)
+            systemcall_r = 'gunzip -c {read} > {tmp} && gzip -c {tmp} > {read} && rm {tmp}*'.format(read=fastqfiles[1], tmp=tmp_reverse)
+            out, err = run_subprocess(systemcall_f)
+            write_to_logfile(systemcall_f, systemcall_f, self.logfile, None, None, None, None)
+            write_to_logfile(out, err, self.logfile, None, None, None, None)
+            out, err = run_subprocess(systemcall_r)
+            write_to_logfile(systemcall_r, systemcall_r, self.logfile, None, None, None, None)
+            write_to_logfile(out, err, self.logfile, None, None, None, None)
+            logging.info('Fizing BBMap gunzip issue complete!')
 
     def estimate_genome_size(self):
         """
