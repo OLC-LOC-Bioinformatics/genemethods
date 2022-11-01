@@ -440,7 +440,7 @@ class Quality(object):
             out, err = run_subprocess(systemcall_r)
             write_to_logfile(systemcall_r, systemcall_r, self.logfile, None, None, None, None)
             write_to_logfile(out, err, self.logfile, None, None, None, None)
-            logging.info('Fixing BBMap gunzip issue complete!')
+        logging.info('Fixing BBMap gunzip issue complete!')
 
     def estimate_genome_size(self):
         """
