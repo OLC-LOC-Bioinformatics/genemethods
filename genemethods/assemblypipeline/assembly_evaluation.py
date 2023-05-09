@@ -445,12 +445,12 @@ class AssemblyEvaluation(object):
         while True:
             sample = self.filterqueue.get()
             # Only run on samples that have been assembled
-            if os.path.isfile(sample.general.contigsfile) and not os.path.isfile(sample.general.filteredfile):
+            if os.path.isfile(sample.general.contigsfile):
                 # Create a list to store all the records of contigs that pass the minimum depth filtering
                 passdepth = list()
                 for record in SeqIO.parse(open(sample.general.contigsfile, "rU"), "fasta"):
                     # Extract the values for the mean coverage depth
-                    coveragemean = float(sample.qualimap.sample.qualimap.coverage[record.id])
+                    coveragemean = float(sample.qualimap.coverage[record.id])
                     coveragestd = float(sample.qualimap.stddev[record.id])
                     # Remove the _pilon added to the contig name in order to allow the contig name to match the original
                     # name used as the key in the sample.qualimap.coverage dictionary
