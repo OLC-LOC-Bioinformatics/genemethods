@@ -80,14 +80,14 @@ class AssemblyEvaluation(object):
                     sample.quast.map_command = 'bowtie2 -x {base}' \
                         .format(base=sample.quast.base_name)
 
-                    sample.quast.map_command += ' -U {reads}'\
+                    sample.quast.map_command += ' -U {reads}' \
                         .format(reads=sample.general.trimmedcorrectedfastqfiles[0]) \
                         if len(sample.general.trimmedcorrectedfastqfiles) == 1 \
                         else ' -1 {forward} -2 {reverse}'.format(forward=sample.general.trimmedcorrectedfastqfiles[0],
                                                                  reverse=sample.general.trimmedcorrectedfastqfiles[1])
                     sample.quast.map_command += ' -p {threads} -X 1000 | ' \
                                                 'samtools view -@ {threads} -h -F 4 -bT {target} - | ' \
-                                                'samtools sort - -@ {threads} -o {sortedbam}'\
+                                                'samtools sort - -@ {threads} -o {sortedbam}' \
                         .format(threads=self.cpus,
                                 target=sample.general.assemblyfile,
                                 sortedbam=sample.quast.sortedbam)
@@ -153,33 +153,39 @@ class AssemblyEvaluation(object):
                 if sample.general.bestassemblyfile != "NA":
                     # Allow for non-paired samples
                     if len(sample.general.trimmedcorrectedfastqfiles) == 2:
-                        sample.quast.cmd = 'quast.py --pe1 {forward} --pe2 {reverse}'\
-                            .format(forward=sample.general.trimmedcorrectedfastqfiles[0],
-                                    reverse=sample.general.trimmedcorrectedfastqfiles[1])
+                        sample.quast.cmd = 'quast.py --pe1 {forward} --pe2 {reverse}'.format(
+                            forward=sample.general.trimmedcorrectedfastqfiles[0],
+                            reverse=sample.general.trimmedcorrectedfastqfiles[1]
+                        )
                     else:
-                        sample.quast.cmd = 'quast.py --single {single}'\
-                            .format(single=sample.general.trimmedcorrectedfastqfiles[0])
+                        sample.quast.cmd = 'quast.py --single {single}'.format(
+                            single=sample.general.trimmedcorrectedfastqfiles[0]
+                        )
                     # Both paired and unpaired samples share the rest of the system call
                     # --debug is specified, as certain temporary files are either used for downstream analyses
                     # (BAM file), or parsed (insert size estimation)
                     sample.quast.cmd += ' --ref-bam {bam} -t {threads} --k-mer-stats --circos --rna-finding ' \
-                                        '--conserved-genes-finding -o {outputdir} --debug {assembly}'\
-                        .format(bam=sample.quast.sortedbam,
-                                threads=self.cpus,
-                                outputdir=sample.quast.outputdir,
-                                assembly=sample.general.assemblyfile)
+                                        '--conserved-genes-finding -o {outputdir} --debug {assembly}' \
+                                        ' --threads {threads}'.format(
+                            bam=sample.quast.sortedbam,
+                            threads=self.cpus,
+                            outputdir=sample.quast.outputdir,
+                            assembly=sample.general.assemblyfile
+                        )
                     # Run the quast system call if the final quast report doesn't already exist
                     if not os.path.isfile(sample.quast.report):
                         out, err = run_subprocess(sample.quast.cmd)
                         # Write the appropriate information to the logfile
-                        write_to_logfile(out='{cmd}\n{out}'.format(cmd=sample.quast.cmd,
-                                                                   out=out),
-                                         err=err,
-                                         logfile=self.logfile,
-                                         samplelog=sample.general.logout,
-                                         sampleerr=sample.general.logerr,
-                                         analysislog=None,
-                                         analysiserr=None)
+                        write_to_logfile(
+                            out='{cmd}\n{out}'.format(cmd=sample.quast.cmd,
+                                                      out=out),
+                            err=err,
+                            logfile=self.logfile,
+                            samplelog=sample.general.logout,
+                            sampleerr=sample.general.logerr,
+                            analysislog=None,
+                            analysiserr=None
+                        )
 
     def parse_quast_report(self):
         """
@@ -242,7 +248,7 @@ class AssemblyEvaluation(object):
                                 # Extract the mean and standard deviation of the insert size for this block
                                 #  [M::mem_pestat] mean and std.dev: (487.88, 246.14)
                                 if '[M::mem_pestat] mean and std.dev:' in sub_line:
-                                    split_line = sub_line.rstrip().replace(',', '').replace('(', '').replace(')', '')\
+                                    split_line = sub_line.rstrip().replace(',', '').replace('(', '').replace(')', '') \
                                         .split()
                                     mean = float(split_line[-2])
                                     std = float(split_line[-1])
@@ -284,7 +290,7 @@ class AssemblyEvaluation(object):
         """
         logging.info('Running qualimap on samples')
         for i in range(self.cpus):
-            # Send the threads to the merge method. :args is empty as I'm using
+            # Send the threads to the merge method.
             threads = Thread(target=self.qualimap, args=())
             # Set the daemon to true - something to do with thread management
             threads.setDaemon(True)
@@ -520,7 +526,7 @@ class AssemblyEvaluation(object):
     @staticmethod
     def analyze(line):
         key, value = line.rstrip().split('\t')
-        key = key.replace(' (%)', '').replace(' ', '_').replace('#', 'num').replace('(>=', 'greater_than')\
+        key = key.replace(' (%)', '').replace(' ', '_').replace('#', 'num').replace('(>=', 'greater_than') \
             .replace(')', '').replace('.', '').replace('\'', '')
         return key, value
 
@@ -605,6 +611,7 @@ if __name__ == '__main__':
             # Associate the assemblies and fastq files in a metadata object
             self.associate()
 
+
     class MetadataInit(object):
         def __init__(self, start):
             # Run the parser
@@ -618,6 +625,7 @@ if __name__ == '__main__':
             self.logfile = self.runmetadata.logfile
             # Run the analyses
             AssemblyEvaluation(self)
+
 
     # Run the class
     starttime = time()
