@@ -41,7 +41,7 @@ def ampliconfile(sample, analysistype, contig, amplicon_range, forward_primer, r
                 if record.id == contig:
                     try:
                         # Extract the name of the gene from the primer name
-                        genename = forward_primer[0].split('-')[0]
+                        genename = forward_primer.rsplit('-F', 1)[0]
                         try:
                             # Sort the range calculated above
                             start = amplicon_range[0]
@@ -563,9 +563,9 @@ class PrimerFinder(object):
                             # Extract the precise primers from the dictionary e.g. vtx2a use to
                             # find vtx2a-F2_4 (forward) and vtx2a-R3_1 (reverse)
                             forwardprimers = [primer for primer in sample[self.analysistype].blastresults[contig]
-                                              if gene == primer.split('-F')[0]]
+                                              if gene == primer.rsplit('-F', 1)[0]]
                             reverseprimers = [primer for primer in sample[self.analysistype].blastresults[contig]
-                                              if gene == primer.split('-R')[0]]
+                                              if gene == primer.rsplit('-R', 1)[0]]
                             # Concatenate the lists
                             primers = forwardprimers + reverseprimers
                             # Populate the dictionary with the primers
