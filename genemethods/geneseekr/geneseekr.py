@@ -33,7 +33,7 @@ class GeneSeekr(object):
         Filter large allele databases with bbduk. Store only the alleles that match the target sequence prior to running
         very large BLAST analyses
         :param metadata: Metadata object
-        :param analysistype: Name of analysis type
+        :param analysistype: Name of analysis type.replace('gb|', '').replace('|', '')
         :param cpus: Number of threads to use for baiting
         """
         # Define memory to use (bbduk can sometimes fail to detect system memory properly)
@@ -388,9 +388,9 @@ class GeneSeekr(object):
                         # Create a percent_match dictionary entry
                         row['percent_match'] = percentidentity
                         # Remove unwanted pipes added to the name
-                        target = row['subject_id'].lstrip('gb|').rstrip('|') if '|' in row['subject_id'] else \
+                        target = row['subject_id'].replace('gb|', '').replace('|', '') if '|' in row['subject_id'] else \
                             row['subject_id']
-                        row['subject_id'] = row['subject_id'].lstrip('gb|').rstrip('|') if '|' in row['subject_id'] \
+                        row['subject_id'] = row['subject_id'].replace('gb|', '').replace('|', '') if '|' in row['subject_id'] \
                             else row['subject_id']
                         # If the percent identity is greater than the cutoff
                         if percentidentity >= cutoff:
@@ -471,7 +471,7 @@ class GeneSeekr(object):
                         # Remove unwanted pipes added to the name
                         for prefix in ['gb|', 'gi|']:
                             if prefix in row:
-                                row['subject_id'] = row['subject_id'].lstrip(prefix).rstrip('|')
+                                row['subject_id'] = row['subject_id'].replace(prefix, '').replace('|', '')
                         target = row['subject_id']
                         # Extract the genus name. Use the subject id as a key in the dict of the reference db.
                         # It will return the record e.g. gi|1018196593|ref|NR_136472.1| Escherichia marmotae
@@ -545,105 +545,103 @@ class GeneSeekr(object):
             sample[analysistype].querypercent = dict()
             sample[analysistype].queryscore = dict()
             sample[analysistype].results = dict()
-            try:
-                # Encountering the following error: # _csv.Error: field larger than field limit (131072)
-                # According to https://stackoverflow.com/a/15063941, increasing the field limit should fix the issue
-                csv.field_size_limit(sys.maxsize)
-                # Open the sequence profile file as a dictionary
-                blastdict = DictReader(open(sample[analysistype].report), fieldnames=fieldnames, dialect='excel-tab')
-                # Go through each BLAST result
-                for row in blastdict:
-                    # Ignore the headers
-                    if row['query_id'].startswith(fieldnames[0]):
-                        pass
+            if not os.path.isfile(sample[analysistype].report):
+                continue
+            # Encountering the following error: # _csv.Error: field larger than field limit (131072)
+            # According to https://stackoverflow.com/a/15063941, increasing the field limit should fix the issue
+            csv.field_size_limit(sys.maxsize)
+            # Open the sequence profile file as a dictionary
+            blastdict = DictReader(open(sample[analysistype].report), fieldnames=fieldnames, dialect='excel-tab')
+            # Go through each BLAST result
+            for row in blastdict:
+                # Ignore the headers
+                if row['query_id'].startswith(fieldnames[0]):
+                    continue
+                # Create the subject length variable - if the sequences are DNA (e.g. blastn), use the subject
+                # length as usual; if the sequences are protein (e.g. tblastx), use the subject length / 3
+                if program == 'blastn' or program == 'blastp' or program == 'blastx':
+                    subject_length = float(row['subject_length'])
+                else:
+                    subject_length = float(row['subject_length']) / 3
+                # Calculate the percent identity
+                # Percent identity is: (# matches - # mismatches - # gaps) / total subject length
+                percentidentity = float('{:0.2f}'.format((float(row['positives']) - float(row['gaps'])) /
+                                                            subject_length * 100))
+                target = row['subject_id'].replace('gb|', '').replace('|', '') if '|' in row['subject_id'] else \
+                    row['subject_id']
+                contig = row['query_id']
+                high = max([int(row['query_start']), int(row['query_end'])])
+                low = min([int(row['query_start']), int(row['query_end'])])
+                score = row['bit_score']
+                # Create new entries in the blast results dictionaries with the calculated variables
+                row['percentidentity'] = percentidentity
+                row['percent_match'] = percentidentity
+                row['low'] = low
+                row['high'] = high
+                row['alignment_fraction'] = float('{:0.2f}'.format(float(float(row['alignment_length']) /
+                                                                            subject_length * 100)))
+                # If the percent identity is greater than the cutoff
+                if percentidentity >= cutoff:
+                    try:
+                        sample[analysistype].results[contig].append(row)
+                        # Boolean to store whether the list needs to be updated
+                        append = True
+                        # Iterate through all the ranges. If the new range is different than any of the ranges
+                        # seen before, append it. Otherwise, update the previous ranges with the longer range as
+                        # necessary e.g. [2494, 3296] will be updated to [2493, 3296] with [2493, 3293], and
+                        # [2494, 3296] will become [[2493, 3296], [3296, 4132]] with [3296, 4132]
+                        for spot in sample[analysistype].queryranges[contig]:
+                            # Update the low value if the new low value is slightly lower than before
+                            if 1 <= (spot[0] - low) <= 100:
+                                # Update the low value
+                                spot[0] = low
+                                # It is not necessary to append
+                                append = False
+                            # Update the previous high value if the new high value is higher than before
+                            elif 1 <= (high - spot[1]) <= 100:
+                                # Update the high value in the list
+                                spot[1] = high
+                                # It is not necessary to append
+                                append = False
+                            # Do not append if the new low is slightly larger than before
+                            elif 1 <= (low - spot[0]) <= 100:
+                                append = False
+                            # Do not append if the new high is slightly smaller than before
+                            elif 1 <= (spot[1] - high) <= 100:
+                                append = False
+                            # Do not append if the high and low are the same as the previously recorded values
+                            elif low == spot[0] and high == spot[1]:
+                                append = False
+                        # If the result appears to be in a new location, add the data to the object
+                        if append:
+                            sample[analysistype].queryranges[contig].append([low, high])
+                            sample[analysistype].querypercent[contig] = percentidentity
+                            sample[analysistype].queryscore[contig] = score
+                    # Initialise and populate the dictionary for each contig
+                    except KeyError:
+                        sample[analysistype].queryranges[contig] = list()
+                        sample[analysistype].queryranges[contig].append([low, high])
+                        sample[analysistype].querypercent[contig] = percentidentity
+                        sample[analysistype].queryscore[contig] = score
+                        sample[analysistype].results[contig] = list()
+                        sample[analysistype].results[contig].append(row)
+                        sample[analysistype].targetsequence[target] = list()
+                    # Determine if the query sequence is in a different frame than the subject, and correct
+                    # by setting the query sequence to be the reverse complement
+                    if int(row['subject_end']) < int(row['subject_start']):
+                        # Create a sequence object using Biopython
+                        seq = Seq(row['query_sequence'])
+                        # Calculate the reverse complement of the sequence
+                        querysequence = str(seq.reverse_complement())
+                    # If the sequence is not reversed, use the sequence as it is in the output
                     else:
-                        # Create the subject length variable - if the sequences are DNA (e.g. blastn), use the subject
-                        # length as usual; if the sequences are protein (e.g. tblastx), use the subject length / 3
-                        if program == 'blastn' or program == 'blastp' or program == 'blastx':
-                            subject_length = float(row['subject_length'])
-                        else:
-                            subject_length = float(row['subject_length']) / 3
-                        # Calculate the percent identity
-                        # Percent identity is: (# matches - # mismatches - # gaps) / total subject length
-                        percentidentity = float('{:0.2f}'.format((float(row['positives']) - float(row['gaps'])) /
-                                                                 subject_length * 100))
-                        target = row['subject_id'].lstrip('gb|').rstrip('|') if '|' in row['subject_id'] else \
-                            row['subject_id']
-                        contig = row['query_id']
-                        high = max([int(row['query_start']), int(row['query_end'])])
-                        low = min([int(row['query_start']), int(row['query_end'])])
-                        score = row['bit_score']
-                        # Create new entries in the blast results dictionaries with the calculated variables
-                        row['percentidentity'] = percentidentity
-                        row['percent_match'] = percentidentity
-                        row['low'] = low
-                        row['high'] = high
-                        row['alignment_fraction'] = float('{:0.2f}'.format(float(float(row['alignment_length']) /
-                                                                                 subject_length * 100)))
-                        # If the percent identity is greater than the cutoff
-                        if percentidentity >= cutoff:
-                            try:
-                                sample[analysistype].results[contig].append(row)
-                                # Boolean to store whether the list needs to be updated
-                                append = True
-                                # Iterate through all the ranges. If the new range is different than any of the ranges
-                                # seen before, append it. Otherwise, update the previous ranges with the longer range as
-                                # necessary e.g. [2494, 3296] will be updated to [2493, 3296] with [2493, 3293], and
-                                # [2494, 3296] will become [[2493, 3296], [3296, 4132]] with [3296, 4132]
-                                for spot in sample[analysistype].queryranges[contig]:
-                                    # Update the low value if the new low value is slightly lower than before
-                                    if 1 <= (spot[0] - low) <= 100:
-                                        # Update the low value
-                                        spot[0] = low
-                                        # It is not necessary to append
-                                        append = False
-                                    # Update the previous high value if the new high value is higher than before
-                                    elif 1 <= (high - spot[1]) <= 100:
-                                        # Update the high value in the list
-                                        spot[1] = high
-                                        # It is not necessary to append
-                                        append = False
-                                    # Do not append if the new low is slightly larger than before
-                                    elif 1 <= (low - spot[0]) <= 100:
-                                        append = False
-                                    # Do not append if the new high is slightly smaller than before
-                                    elif 1 <= (spot[1] - high) <= 100:
-                                        append = False
-                                    # Do not append if the high and low are the same as the previously recorded values
-                                    elif low == spot[0] and high == spot[1]:
-                                        append = False
-                                # If the result appears to be in a new location, add the data to the object
-                                if append:
-                                    sample[analysistype].queryranges[contig].append([low, high])
-                                    sample[analysistype].querypercent[contig] = percentidentity
-                                    sample[analysistype].queryscore[contig] = score
-                            # Initialise and populate the dictionary for each contig
-                            except KeyError:
-                                sample[analysistype].queryranges[contig] = list()
-                                sample[analysistype].queryranges[contig].append([low, high])
-                                sample[analysistype].querypercent[contig] = percentidentity
-                                sample[analysistype].queryscore[contig] = score
-                                sample[analysistype].results[contig] = list()
-                                sample[analysistype].results[contig].append(row)
-                                sample[analysistype].targetsequence[target] = list()
-                            # Determine if the query sequence is in a different frame than the subject, and correct
-                            # by setting the query sequence to be the reverse complement
-                            if int(row['subject_end']) < int(row['subject_start']):
-                                # Create a sequence object using Biopython
-                                seq = Seq(row['query_sequence'])
-                                # Calculate the reverse complement of the sequence
-                                querysequence = str(seq.reverse_complement())
-                            # If the sequence is not reversed, use the sequence as it is in the output
-                            else:
-                                querysequence = row['query_sequence']
-                            # Add the sequence in the correct orientation to the sample
-                            try:
-                                sample[analysistype].targetsequence[target].append(querysequence)
-                            except (AttributeError, KeyError):
-                                sample[analysistype].targetsequence[target] = list()
-                                sample[analysistype].targetsequence[target].append(querysequence)
-            except FileNotFoundError:
-                pass
+                        querysequence = row['query_sequence']
+                    # Add the sequence in the correct orientation to the sample
+                    try:
+                        sample[analysistype].targetsequence[target].append(querysequence)
+                    except (AttributeError, KeyError):
+                        sample[analysistype].targetsequence[target] = list()
+                        sample[analysistype].targetsequence[target].append(querysequence)
         # Return the updated metadata object
         return metadata
 
@@ -653,7 +651,7 @@ class GeneSeekr(object):
         Filters multiple BLAST hits in a common region of the genome. Leaves only the best hit
         :param metadata: Metadata object
         :param analysistype: Current analysis type
-        :return: Updated metaata object
+        :return: Updated metadata object
         """
         for sample in metadata:
             # Initialise variables

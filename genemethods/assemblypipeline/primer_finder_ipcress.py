@@ -31,7 +31,7 @@ def fasta_primers(primerfile, forward_dict, reverse_dict):
         primer = str(record.seq)
         # Split the base name of the target from the direction
         # e.g. vtx1a-F1 is split in vtx1a and F1
-        basename, direction = primer_name.split('-')
+        basename, direction = primer_name.rsplit('-', 1)
         # Populate the dictionaries of forward and reverse primers based on the direction determined above
         if direction.startswith('F'):
             # Add the current primer sequence to the dictionary

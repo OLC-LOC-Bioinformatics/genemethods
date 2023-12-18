@@ -129,8 +129,22 @@ class Sistr(object):
         make_path(self.reportdir)
         self.analysistype = analysistype
         # self.devnull = open(os.devnull, 'wb')
-        self.headers = ['genome', 'cgmlst_distance', 'cgmlst_genome_match', 'cgmlst_matching_alleles', 'h1', 'h2',
-                        'serogroup', 'serovar', 'serovar_antigen', 'serovar_cgmlst']
+        self.headers = [
+            'genome',
+            'cgmlst_ST',
+            'cgmlst_distance',
+            'cgmlst_found_loci',
+            'cgmlst_genome_match',
+            'cgmlst_matching_alleles',
+            'cgmlst_subspecies',
+            'h1',
+            'h2',
+            'o_antigen',
+            'serogroup',
+            'serovar',
+            'serovar_antigen',
+            'serovar_cgmlst'
+            ]
 
 
 if __name__ == '__main__':
