@@ -189,10 +189,15 @@ class MobRecon(object):
                             pass
                         # Use the list of results from the resfinder analyses
                         for amr_result in sample.resfinder_assembled.sampledata:
+                            # Allow for contigs with names like 1 or 2
+                            try:
+                                split_contig = str(amr_result[5].split('_')[0])
+                            except AttributeError:
+                                split_contig = None
                             # Ensure that the current contig is the same as the one in the resfinder results. Ensure
                             # that the slice of the amr result is treated as a string. Unicycler contigs seem to be
                             # treated as integers
-                            if str(amr_result[5]) == contig or str(amr_result[5].split('_')[0]) == contig:
+                            if str(amr_result[5]) == contig or split_contig == contig:
                                 # Add the resistance and MOB recon outputs for the strain
                                 location = results['primary_cluster_id'] if results['molecule_type'] == 'plasmid' \
                                     else 'chromosome'
@@ -382,7 +387,7 @@ if __name__ == '__main__':
                     for i, header in enumerate(headers):
                         # Add the raw BLAST outputs (e.g. sample_id, positives, alignment_length, etc.) to the
                         # dictionary (gene name: header: result)
-                        sample.geneseekr_results.sampledata[result[1].lstrip('gb|').rstrip('|')]\
+                        sample.geneseekr_results.sampledata[result[1].replace('gb|', '').replace('|', '')]\
                             .update({headers[i]: result[i]})
         return metadata
 
