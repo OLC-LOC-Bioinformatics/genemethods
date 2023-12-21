@@ -221,7 +221,7 @@ class MobRecon(object):
         """
         logging.info('Creating predicted plasmid-borne gene summary table')
         with open(os.path.join(self.reportpath, 'plasmid_borne_summary.csv'), 'w') as pbs:
-            data = 'Strain,Gene,PercentIdentity,Contig,Location,PlasmidIncompatibilitySets\n'
+            data = 'Strain,Gene,PercentIdentity,Contig,MoleculeType,PrimaryClusterID,SecondaryClusterID,PlasmidIncompatibilitySets\n'
             for sample in self.metadata:
                 # Create a flag to determine whether the strain name needs to be added to the data string if there
                 # were no results
@@ -233,17 +233,17 @@ class MobRecon(object):
                 # Iterate through all the MOB recon outputs to populate the incompatibility set
                 for primarykey, results in sample[self.analysistype].report_dict.items():
                     try:
-                        inc = results['cluster_id']
+                        inc = results['primary_cluster_id']
                         # Convert the rep_type field (predicted incompatibilities) into a more a consistent
                         # format - pandas will call empty fields 'nan', which is a float
-                        rep = str(results['rep_type']).replace(',', ';') if str(results['rep_type']) != 'nan' else 'ND'
+                        rep = str(results['rep_type(s)']).replace(',', ';') if str(results['rep_type(s)']) != 'nan' else 'ND'
                         # Add the incompatibility to the set
                         try:
                             inc_dict[inc].add(rep)
                         except KeyError:
                             inc_dict[inc] = set()
                             inc_dict[inc].add(rep)
-                    except KeyError:
+                    except KeyError :
                         pass
                 for primarykey, results in sample[self.analysistype].report_dict.items():
                     try:
@@ -271,15 +271,19 @@ class MobRecon(object):
                                         # to True
                                         result_bool = True
                                         data += '{sn},'.format(sn=sample.name)
-                                        data += '{gene},{pi},{contig},{cid},{inc}\n'\
+                                        data += '{gene},{pi},{contig},{mt},{pid},{sid},{inc}\n'\
                                             .format(gene=gene,
                                                     pi=percent_identity,
                                                     contig=contig,
-                                                    cid=results['cluster_id'],
-                                                    inc=';'.join(sorted(inc_dict[str(results['cluster_id'])])))
-                                except ValueError:
+                                                    mt=results['molecule_type'],
+                                                    pid=results['primary_cluster_id'],
+                                                    sid=results['secondary_cluster_id'],
+                                                    inc=';'.join(sorted(inc_dict[str(results['primary_cluster_id'])])))
+                                except ValueError as exc:
+                                    pass
+                                    
                                     data += '{sn}\n'.format(sn=sample.name)
-                    except KeyError:
+                    except KeyError as exc:
                         pass
                 # If there were no results associated with the strain, make the row the strain name only
                 if not result_bool:
@@ -387,8 +391,8 @@ if __name__ == '__main__':
                     for i, header in enumerate(headers):
                         # Add the raw BLAST outputs (e.g. sample_id, positives, alignment_length, etc.) to the
                         # dictionary (gene name: header: result)
-                        sample.geneseekr_results.sampledata[result[1].replace('gb|', '').replace('|', '')]\
-                            .update({headers[i]: result[i]})
+                        cleaned_result = result[1].replace('gb|', '').replace('emb|', '').replace('|', '')
+                        sample.geneseekr_results.sampledata[cleaned_result].update({headers[i]: result[i]})
         return metadata
 
 
