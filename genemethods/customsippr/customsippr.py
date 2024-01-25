@@ -1,9 +1,16 @@
 #!/usr/bin/env python3
-from olctools.accessoryFunctions.accessoryFunctions import combinetargets
-from genemethods.sipprCommon.sippingmethods import Sippr
-from Bio import SeqIO
 import logging
 import os
+
+# Third-party imports
+from Bio import SeqIO
+from Bio.Seq import Seq
+from Bio.SeqRecord import SeqRecord
+
+# Organizational imports
+from genemethods.sipprCommon.sippingmethods import Sippr
+from olctools.accessoryFunctions.accessoryFunctions import combinetargets
+
 
 __author__ = 'adamkoziol'
 
@@ -71,6 +78,19 @@ class CustomGenes(object):
                                         record=sample[self.analysistype].sequences[target])
                             # Populate the data string appropriately
                             data += gene_results
+                            # Create a FASTA-formatted record
+                            record = SeqRecord(
+                                Seq(sample[self.analysistype].sequences[target]),
+                                id='{}_{}'.format(sample.name, name),
+                                description=''
+                            )
+                            # Set the name of the output file
+                            output_fasta = os.path.join(
+                                self.reportpath, f'{sample.name}_{name}.fasta'
+                            )
+                            # Write the match to file
+                            with open(output_fasta, 'w', encoding='utf-8') as fasta:
+                                SeqIO.write(record, fasta, 'fasta')
                     # If the target is not present, write dashes to represent the results and sequence
                     if not write_results:
                         data += '-,-,'
