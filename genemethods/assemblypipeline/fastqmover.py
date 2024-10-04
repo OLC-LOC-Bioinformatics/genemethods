@@ -1,50 +1,139 @@
 #!/usr/bin/env python3
-from olctools.accessoryFunctions.accessoryFunctions import make_path
+
+"""
+Script to move FASTQ files for each sample to an appropriately named folder.
+"""
+
+# Standard imports
 from glob import glob
 import logging
 import os
+import re
+from typing import List
+
+# Third-party imports
+from olctools.accessoryFunctions.accessoryFunctions import make_path
+
 __author__ = 'adamkoziol'
 
 
-class FastqMover(object):
+class FastqMover:
+    """
+    Class to handle the movement of FASTQ files for each sample to an
+    appropriately named folder.
+    """
 
-    def movefastq(self):
-        """Find .fastq files for each sample and move them to an appropriately named folder"""
+    def __init__(self, metadata: List, path: str) -> None:
+        """
+        Initialize the FastqMover class.
+
+        :param inputobject: Object containing metadata and path information.
+        """
+        self.metadata = metadata
+        self.path = path
+        self.move_fastq()
+
+    def move_fastq(self) -> None:
+        """
+        Find .fastq files for each sample and move them to an appropriately
+        named folder.
+        """
         logging.info('Moving FASTQ files')
         # Iterate through each sample
-        for sample in self.metadata.runmetadata.samples:
+        for sample in self.metadata:
             # Retrieve the output directory
-            outputdir = os.path.join(self.path, sample.name)
-            # Find any fastq files with the sample name
-            fastqfiles = sorted(glob(os.path.join(self.path, '{}_*.fastq*'.format(sample.name)))) \
-                if sorted(glob(os.path.join(self.path, '{}_*.fastq*'.format(sample.name)))) \
-                else sorted(glob(os.path.join(self.path, '{}.fastq*'.format(sample.name)))) \
-                if sorted(glob(os.path.join(self.path, '{}.fastq*'.format(sample.name)))) \
-                else sorted(glob(os.path.join(self.path, '{}*.fastq*'.format(sample.name))))
-            # Only try and move the files if the files exist
-            if fastqfiles:
-                make_path(outputdir)
-                # Symlink the fastq files to the directory
-                try:
-                    list(map(lambda x: os.symlink(os.path.join('..', os.path.basename(x)),
-                                                  os.path.join(outputdir, os.path.basename(x))), fastqfiles))
-                except OSError:
-                    pass
-                # Find any fastq files with the sample name
-                fastqfiles = [fastq for fastq in sorted(glob(os.path.join(outputdir, '{}*.fastq*'.format(sample.name))))
-                              if 'trimmed' not in fastq and 'normalised' not in fastq and 'corrected' not in fastq
-                              and 'paired' not in fastq and 'unpaired' not in fastq]
-            else:
-                if outputdir:
-                    # Find any fastq files with the sample name
-                    fastqfiles = [fastq for fastq in sorted(glob(os.path.join(
-                        outputdir, '{}*.fastq*'.format(outputdir, sample.name))))
-                                  if 'trimmed' not in fastq and 'normalised' not in fastq and 'corrected' not in fastq
-                                  and 'paired' not in fastq and 'unpaired' not in fastq]
-            sample.general.fastqfiles = fastqfiles
+            output_dir = os.path.join(self.path, sample.name)
 
-    def __init__(self, inputobject):
-        self.metadata = inputobject
-        self.path = inputobject.path
-        self.start = inputobject.starttime
-        self.movefastq()
+            # Find any fastq files with the sample name
+            fastq_files = self.find_fastq_files(sample.name)
+
+            # Only try and move the files if the files exist
+            if fastq_files:
+                make_path(output_dir)
+
+                # Symlink the fastq files to the directory
+                self.symlink_fastq_files(fastq_files, output_dir)
+
+                # Filter out unwanted fastq files
+                fastq_files = self.filter_fastq_files(output_dir, sample.name)
+            else:
+                if output_dir:
+                    # Filter out unwanted fastq files
+                    fastq_files = self.filter_fastq_files(
+                        output_dir, sample.name)
+            sample.general.fastqfiles = fastq_files
+
+    def find_fastq_files(self, sample_name: str) -> List[str]:
+        """
+        Find .fastq files for a given sample name.
+
+        This method searches for .fastq files that match the sample name
+        using a regular expression. It returns the list of fastq file paths.
+
+        :param sample_name: Name of the sample.
+        :return: List of fastq file paths.
+        """
+        # Compile a regular expression to match all desired patterns
+        pattern = re.compile(
+            rf'{re.escape(sample_name)}(_.*|\.|.*)\.(fastq|fq)(\.gz)?$'
+        )
+        # Find all files in the directory
+        all_files = glob(os.path.join(self.path, '*'))
+        # Filter files using the compiled regular expression
+        fastq_files = [
+            f for f in all_files if pattern.search(
+                os.path.basename(f))]
+        return sorted(fastq_files)
+
+    @staticmethod
+    def symlink_fastq_files(fastq_files: List[str], output_dir: str) -> None:
+        """
+        Create symlinks for fastq files in the output directory.
+
+        This method creates symbolic links for each fastq file in the specified
+        output directory.
+
+        :param fastq_files: List of fastq file paths.
+        :param output_dir: Path to the output directory.
+        """
+        for fastq in fastq_files:
+            src = os.path.join('..', os.path.basename(fastq))
+            dst = os.path.join(output_dir, os.path.basename(fastq))
+            try:
+                os.symlink(src, dst)
+                logging.info("Created symlink: %s -> %s", src, dst)
+            except FileExistsError:
+                logging.warning("Symlink already exists: %s", dst)
+            except OSError:
+                logging.error(
+                    "Failed to create symlink: %s -> %s",
+                    src,
+                    dst,
+                    exc_info=True
+                )
+
+    @staticmethod
+    def filter_fastq_files(output_dir: str, sample_name: str) -> List[str]:
+        """
+        Filter out unwanted fastq files from the output directory.
+
+        This method filters out fastq files that contain unwanted keywords
+        such as 'trimmed', 'normalised', 'corrected', 'paired', and 'unpaired'.
+
+        :param output_dir: Path to the output directory.
+        :param sample_name: Name of the sample.
+        :return: List of filtered fastq file paths.
+        """
+        # Define unwanted keywords to filter out
+        unwanted_keywords = [
+            'trimmed', 'normalised', 'corrected', 'paired', 'unpaired'
+        ]
+        # Find all fastq files in the output directory
+        fastq_files = sorted(
+            glob(os.path.join(output_dir, f'{sample_name}*.fastq*'))
+        )
+        # Filter out fastq files containing any of the unwanted keywords
+        return [
+            fastq for fastq in fastq_files
+            if not any(keyword in fastq for keyword in unwanted_keywords)
+        ]
