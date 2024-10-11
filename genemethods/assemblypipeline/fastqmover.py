@@ -61,7 +61,7 @@ class FastqMover:
                     # Filter out unwanted fastq files
                     fastq_files = self.filter_fastq_files(
                         output_dir, sample.name)
-            sample.general.fastqfiles = fastq_files
+            sample.general.fastq_files = fastq_files
 
     def find_fastq_files(self, sample_name: str) -> List[str]:
         """

@@ -1,218 +1,239 @@
 #!/usr/bin/env python3
-from olctools.accessoryFunctions.accessoryFunctions import make_path, run_subprocess, write_to_logfile
-from genewrappers.biotools import bbtools
-from subprocess import CalledProcessError
-from click import progressbar
+
+"""
+Run SKESA on FASTQ files.
+"""
+
+# Standard imports
 import logging
-import shutil
 import os
+import shutil
+from typing import List, Any
+
+# Third-party imports
+from olctools.accessoryFunctions.accessoryFunctions import (
+    run_subprocess,
+    write_to_log_file
+)
+
 __author__ = 'adamkoziol'
 
 
-class Skesa(object):
+class Skesa:
+    """
+    Assemble genomes with SKESA, and ensure that the assembly was successful.
+    """
 
-    def main(self):
+    def __init__(
+        self,
+        log_file: str,
+        metadata: List[Any],
+        report_path: str,
+        sequence_path: str,
+        threads: int
+    ) -> None:
+        """
+        Initialize the Skesa class with the provided arguments.
+
+        Args:
+            log_file (str): Path to the log file.
+            metadata (List[Any]): List of metadata sample objects.
+            report_path (str): Path to the report directory.
+            sequence_path (str): Path to the sequence directory.
+            threads (int): Number of threads to use.
+        """
+        self.metadata = metadata
+        self.threads = threads
+        self.path = sequence_path
+        self.logfile = log_file
+        self.reportpath = report_path
+
+        # Create the directories as required
+        os.makedirs(os.path.join(self.path, 'BestAssemblies'), exist_ok=True)
+        os.makedirs(os.path.join(self.path, 'raw_assemblies'), exist_ok=True)
+        os.makedirs(self.reportpath, exist_ok=True)
+        logging.info('Assembling sequences')
+
+    def main(self) -> None:
+        """
+        Assemble genomes and determine whether the assembly was successful.
+        """
         self.skesa_assemble()
-        self.best_assemblyfile()
+        self.best_assembly_file()
 
-    def skesa_assemble(self):
-        """
-        Run skesa to assemble genomes
-        """
-        with progressbar(self.metadata) as bar:
-            for sample in bar:
-                # Initialise the assembly command
-                sample.commands.assemble = str()
-                try:
-                    if sample.general.trimmedcorrectedfastqfiles:
-                        # If the sample is a pure isolate, assemble it. Otherwise, run the pre-metagenome pipeline
-                        try:
-                            status = sample.run.Description
-                        except AttributeError:
-                            status = 'unknown'
-                        if status == 'metagenome':
-                            self.merge(sample)
-                        else:
-                            # Set the output directory
-                            sample.general.assembly_output = os.path.join(sample.general.outputdirectory,
-                                                                          'assembly_output')
-                            make_path(sample.general.assembly_output)
-                            sample.general.assemblyfile = os.path.join(sample.general.assembly_output,
-                                                                       '{name}_unfiltered.fasta'
-                                                                       .format(name=sample.name))
-                            sample.general.bestassemblyfile = os.path.join(sample.general.assembly_output,
-                                                                           '{name}.fasta'
-                                                                           .format(name=sample.name))
-                            fastqfiles = sample.general.trimmedcorrectedfastqfiles
+        return self.metadata
 
-                            # Set the the forward fastq files
-                            sample.general.assemblyfastq = fastqfiles
-                            forward = fastqfiles[0]
-                            gz = True if '.gz' in forward else False
-                            # If there are two fastq files
-                            if len(fastqfiles) == 2:
-                                # Set the reverse fastq name https://github.com/ncbi/SKESA/issues/7
-                                sample.commands.assemble = 'skesa --fastq {fastqfiles} --cores {threads} ' \
-                                                           '--use_paired_ends --vector_percent 1 ' \
-                                                           '--contigs_out {contigs}'\
-                                    .format(fastqfiles=','.join(fastqfiles),
-                                            threads=self.cpus,
-                                            contigs=sample.general.assemblyfile)
-                            # Same as above, but use single read settings for the assembler
-                            else:
-                                sample.commands.assemble = 'skesa --fastq {fastqfiles} --cores {threads} ' \
-                                                           '--vector_percent 1 --contigs_out {contigs}'\
-                                    .format(fastqfiles=','.join(fastqfiles),
-                                            threads=self.cpus,
-                                            contigs=sample.general.assemblyfile)
-                            # Specify that the files are gzipped
-                            if gz:
-                                sample.commands.assemble += ' --gz'
-                    # If there are no fastq files, populate the metadata appropriately
-                    else:
-                        sample.general.assembly_output = 'NA'
-                        sample.general.assemblyfastq = 'NA'
-                        sample.general.bestassemblyfile = 'NA'
-                except AttributeError:
-                    sample.general.assembly_output = 'NA'
-                    sample.general.assemblyfastq = 'NA'
-                    sample.general.trimmedcorrectedfastqfiles = 'NA'
-                    sample.general.bestassemblyfile = 'NA'
-                if sample.commands.assemble and not os.path.isfile(sample.general.assemblyfile):
-                    # Run the assembly
-                    out, err = run_subprocess(sample.commands.assemble)
-                    write_to_logfile(sample.commands.assemble,
-                                     sample.commands.assemble,
-                                     self.logfile,
-                                     sample.general.logout,
-                                     sample.general.logerr,
-                                     None,
-                                     None)
-                    write_to_logfile(out,
-                                     err,
-                                     self.logfile,
-                                     sample.general.logout,
-                                     sample.general.logerr,
-                                     None,
-                                     None)
-
-    def merge(self, sample):
+    def skesa_assemble(self) -> None:
         """
-        Use bbmerge to merge paired FASTQ files for use in metagenomics pipelines. Create a report with the
-        total number of reads, and the number of reads that could be paired
-        :param sample: metadata sample object flagged as a metagenome
-        """
-        # Set the assembly file to 'NA' as assembly is not desirable for metagenomes
-        sample.general.assemblyfile = 'NA'
-        # Can only merge paired-end
-        if len(sample.general.fastqfiles) == 2:
-            outpath = os.path.join(sample.general.outputdirectory, 'merged_reads')
-            make_path(outpath)
-            # Merge path - keep all the merged FASTQ files in one directory
-            merge_path = os.path.join(self.path, 'merged_reads')
-            make_path(merge_path)
-            # Set the name of the merged, and unmerged files
-            sample.general.mergedreads = \
-                os.path.join(merge_path, '{}_paired.fastq.gz'.format(sample.name))
-            log = os.path.join(outpath, 'log')
-            error = os.path.join(outpath, 'err')
-            try:
-                if not os.path.isfile(sample.general.mergedreads):
-                    # Run the merging command
-                    out, err, cmd = bbtools.bbmerge(forward_in=sorted(sample.general.trimmedcorrectedfastqfiles)[0],
-                                                    merged_reads=sample.general.mergedreads,
-                                                    mix=True,
-                                                    returncmd=True,
-                                                    threads=self.cpus)
-                    write_to_logfile(out, err, self.logfile, sample.general.logout, sample.general.logerr, None, None)
-                    with open(log, 'w') as log_file:
-                        log_file.write(out)
-                    with open(error, 'w') as error_file:
-                        error_file.write(err)
-            except (CalledProcessError, IndexError):
-                delattr(sample.general, 'mergedreads')
-            # Set the name of the report to store the metagenome file merging results
-            report = os.path.join(self.reportpath, 'merged_metagenomes.csv')
-            # Extract the total number of reads, and the number of reads that could be paired from the bbmerge
-            # err stream
-            num_reads, num_pairs = self.reads(error)
-            # If the report doesn't exist, create it with the header and the results from the first sample
-            if not os.path.isfile(report):
-                with open(report, 'w') as report_file:
-                    report_file.write('Sample,TotalReads,PairedReads\n{sample},{total},{paired}\n'
-                                      .format(sample=sample.name,
-                                              total=num_reads,
-                                              paired=num_pairs))
-            # If the report exists, open it to determine which samples have already been added - useful if re-running
-            # the analysis
-            else:
-                lines = list()
-                with open(report, 'r') as report_file:
-                    for line in report_file:
-                        lines.append(line.split(',')[0])
-                # Add the results to the report
-                if sample.name not in lines:
-                    with open(report, 'a+') as report_file:
-                        report_file.write('{sample},{total},{paired}\n'
-                                          .format(sample=sample.name,
-                                                  total=num_reads,
-                                                  paired=num_pairs))
-
-    @staticmethod
-    def reads(err_log):
-        """
-        Parse the outputs from bbmerge to extract the total number of reads, as well as the number of reads that
-        could be paired
-        :param err_log: bbmerge outputs the stats in the error file
-        :return: num_reads, the total number of reads, paired_reads, number of paired readds
-        """
-        # Initialise variables
-        num_reads = 0
-        paired_reads = 0
-        # Open the log file
-        with open(err_log, 'r') as error_log:
-            # Extract the necessary information
-            for line in error_log:
-                if 'Pairs:' in line:
-                    num_reads = line.split('\t')[-1].rstrip()
-                elif 'Joined:' in line:
-                    paired_reads = line.split('\t')[-2].rstrip()
-        return num_reads, paired_reads
-
-    def best_assemblyfile(self):
-        """
-        Determine whether the contigs.fasta output file from the assembler is present. If not, set the .bestassembly
-        attribute to 'NA'
+        Run SKESA to assemble genomes.
         """
         for sample in self.metadata:
-            try:
-                # Set the name of the filtered assembly file
-                filtered_outputfile = os.path.join(self.path, 'raw_assemblies', '{}.fasta'.format(sample.name))
-                # Set the name of the unfiltered spades assembly output file
-                if os.path.isfile(sample.general.assemblyfile):
-                    size = os.path.getsize(sample.general.assemblyfile)
-                    # Ensure that the assembly isn't just an empty file
-                    if size == 0:
-                        sample.general.bestassemblyfile = 'NA'
-                    else:
-                        sample.general.bestassemblyfile = sample.general.assemblyfile
-                        shutil.copyfile(sample.general.bestassemblyfile, filtered_outputfile)
-                else:
-                    sample.general.bestassemblyfile = 'NA'
-                # Add the name and path of the filtered file to the metadata
-                sample.general.filteredfile = filtered_outputfile
-            except AttributeError:
-                sample.general.assemblyfile = 'NA'
-                sample.general.bestassemblyfile = 'NA'
+            logging.debug("Processing sample: %s", sample.name)
+            if not self._initialize_sample_assembly(sample):
+                continue
 
-    def __init__(self, inputobject):
-        self.metadata = inputobject.runmetadata.samples
-        self.start = inputobject.starttime
-        self.cpus = inputobject.cpus
-        self.path = inputobject.path
-        self.logfile = inputobject.logfile
-        self.reportpath = inputobject.reportpath
-        make_path(os.path.join(self.path, 'BestAssemblies'))
-        make_path(os.path.join(self.path, 'raw_assemblies'))
-        make_path(self.reportpath)
-        logging.info('Assembling sequences')
+            if sample.commands.assemble and not os.path.isfile(
+                sample.general.assembly_file
+            ):
+                self._run_skesa(sample)
+
+    def _initialize_sample_assembly(self, sample) -> bool:
+        """
+        Initialize the assembly attributes for a sample.
+
+        Args:
+            sample: The sample object to initialize attributes for.
+
+        Returns:
+            bool: True if initialization is successful, False otherwise.
+        """
+        try:
+            if hasattr(sample.general, 'trimmed_corrected_fastq_files'):
+                fastq_files = sample.general.trimmed_corrected_fastq_files
+                if not isinstance(fastq_files, list):
+                    logging.warning(
+                        'No FASTQ files found for sample: %s',
+                        sample.name
+                    )
+                    return False
+
+                # Set the output directory
+                sample.general.assembly_output = os.path.join(
+                    sample.general.output_directory, 'assembly_output'
+                )
+                os.makedirs(sample.general.assembly_output, exist_ok=True)
+                sample.general.assembly_file = os.path.join(
+                    sample.general.assembly_output,
+                    f'{sample.name}_unfiltered.fasta'
+                )
+                sample.general.best_assembly_file = os.path.join(
+                    sample.general.assembly_output,
+                    f'{sample.name}.fasta'
+                )
+
+                # Set the forward fastq files
+                sample.general.assembly_fastq = fastq_files
+                forward = fastq_files[0]
+                gz = '.gz' in forward
+
+                # Construct the SKESA command
+                if len(fastq_files) == 2:
+                    sample.commands.assemble = (
+                        f'skesa --fastq {",".join(fastq_files)} '
+                        f'--cores {self.threads} --use_paired_ends '
+                        f'--vector_percent 1 --contigs_out '
+                        f'{sample.general.assembly_file}'
+                    )
+                else:
+                    sample.commands.assemble = (
+                        f'skesa --fastq {",".join(fastq_files)} '
+                        f'--cores {self.threads} --vector_percent 1 '
+                        f'--contigs_out {sample.general.assembly_file}'
+                    )
+
+                # Specify that the files are gzipped
+                if gz:
+                    sample.commands.assemble += ' --gz'
+                logging.debug(
+                    "SKESA command for sample %s: %s",
+                    sample.name,
+                    sample.commands.assemble)
+                return True
+            else:
+                sample.general.assembly_output = 'NA'
+                sample.general.assembly_fastq = 'NA'
+                sample.general.best_assembly_file = 'NA'
+                return False
+        except AttributeError as exc:
+            logging.error(
+                'AttributeError for sample %s: %s', sample.name, str(exc)
+            )
+            sample.general.assembly_output = 'NA'
+            sample.general.assembly_fastq = 'NA'
+            sample.general.trimmed_corrected_fastq_files = 'NA'
+            sample.general.best_assembly_file = 'NA'
+            return False
+
+    def _run_skesa(self, sample) -> None:
+        """
+        Run the SKESA command for a sample.
+
+        Args:
+            sample: The sample object to run SKESA on.
+        """
+        logging.debug("Running SKESA for sample: %s", sample.name)
+        out, err = run_subprocess(sample.commands.assemble)
+        self._log_skesa_output(sample, out, err)
+
+    def _log_skesa_output(self, sample, out, err) -> None:
+        """
+        Log the output and errors from the SKESA command.
+
+        Args:
+            sample: The sample object to log information for.
+            out: The standard output from the SKESA command.
+            err: The standard error from the SKESA command.
+        """
+        logging.debug("Logging SKESA output for sample: %s", sample.name)
+        write_to_log_file(
+            out=sample.commands.assemble,
+            err=sample.commands.assemble,
+            log_file=self.logfile,
+            sample_log=sample.general.log_out,
+            sample_err=sample.general.log_err
+        )
+        write_to_log_file(
+            out=out,
+            err=err,
+            log_file=self.logfile,
+            sample_log=sample.general.log_out,
+            sample_err=sample.general.log_err
+        )
+
+    def best_assembly_file(self) -> None:
+        """
+        Determine whether the contigs.fasta output file from the assembler is
+        present. If not, set the .best_assembly_file attribute to 'NA'.
+        """
+        for sample in self.metadata:
+            logging.debug(
+                "Checking best assembly file for sample: %s",
+                sample.name)
+            try:
+                self._check_and_copy_assembly_file(sample)
+            except AttributeError as e:
+                logging.error(
+                    'AttributeError for sample %s: %s', sample.name, str(e)
+                )
+                sample.general.assembly_file = 'NA'
+                sample.general.best_assembly_file = 'NA'
+
+    def _check_and_copy_assembly_file(self, sample) -> None:
+        """
+        Check and copy the assembly file for a sample.
+
+        Args:
+            sample: The sample object to check and copy the assembly file for.
+        """
+        # Set the name of the filtered assembly file
+        filtered_output_file = os.path.join(
+            self.path, 'raw_assemblies', f'{sample.name}.fasta'
+        )
+        # Set the name of the unfiltered SKESA assembly output file
+        if os.path.isfile(sample.general.assembly_file):
+            size = os.path.getsize(sample.general.assembly_file)
+            # Ensure that the assembly isn't just an empty file
+            if size == 0:
+                sample.general.best_assembly_file = 'NA'
+            else:
+                sample.general.best_assembly_file = (
+                    sample.general.assembly_file
+                )
+                shutil.copyfile(
+                    sample.general.best_assembly_file,
+                    filtered_output_file
+                )
+        else:
+            sample.general.best_assembly_file = 'NA'
+        # Add the name and path of the filtered file to the metadata
+        sample.general.filtered_file = filtered_output_file
