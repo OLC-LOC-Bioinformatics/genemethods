@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 from olctools.accessoryFunctions.accessoryFunctions import combinetargets, GenObject, make_dict, make_path, \
     MetadataObject, printtime, run_subprocess, write_to_logfile
-from genemethods.typingclasses.typingclasses import ResistanceNotes
+from genemethods.typing_classes.typing_classes import ResistanceNotes
 from Bio.Blast.Applications import NcbiblastnCommandline
 from Bio.Application import ApplicationError
 from Bio.pairwise2 import format_alignment

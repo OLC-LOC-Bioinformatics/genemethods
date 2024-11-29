@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 from olctools.accessoryFunctions.accessoryFunctions import make_path, run_subprocess
-from genemethods.typingclasses.resistance import ResistanceNotes
+from genemethods.typing_classes.resistance import ResistanceNotes
 from genemethods.sipprverse_reporter.reports import Reports
 from genewrappers.biotools.bbtools import kwargs_to_string
 from Bio.Blast.Applications import NcbiblastnCommandline, NcbiblastxCommandline, NcbiblastpCommandline, \

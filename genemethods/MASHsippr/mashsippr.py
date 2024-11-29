@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 from olctools.accessoryFunctions.accessoryFunctions import MetadataObject, printtime
 from genemethods.sipprCommon.objectprep import Objectprep
-from genemethods.MASHsippr.mash import Mash
+from genemethods.assemblypipeline.mash import Mash
 import multiprocessing
 import subprocess
 import time
