@@ -1438,7 +1438,7 @@ class CustomIP(object):
         else:
             self.sequencepath = os.path.abspath(os.path.join(sequencepath))
         assert os.path.isdir(self.sequencepath), 'Cannot locate the supplied sequence path: {sp}. Please ensure that ' \
-                                                 'the folder exists, and you typed in the path correctly'
+                                                 'the folder exists, and you typed in the path correctly'.format(sp=self.sequencepath)
         if reportpath.startswith('~'):
             self.reportpath = os.path.abspath(os.path.expanduser(os.path.join(reportpath)))
         else:
