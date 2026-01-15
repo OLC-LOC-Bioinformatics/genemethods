@@ -339,14 +339,14 @@ def ipcress_mismatches(metadata, analysistype, iupac):
                     # Determine if the forward primer has any mismatches
                     if int(sample[analysistype].results[experiment][contig].forward_mismatch) > 0:
                         # Calculate details of the mismatches
-                        mismatch_string = determine_mismatch_locations(
+                        mismatch_string, mismatch_count = determine_mismatch_locations(
                                 ref_primer=sample[analysistype].results[experiment][contig].forward_ref,
                                 query_primer=sample[analysistype].results[experiment][contig].forward_query,
                                 iupac=iupac
                             )
                         # I've found an issue with ipcress where it sometimes reports mismatches when there are 
                         # multiple degenerate bases, but there are no real mismatches
-                        if not mismatch_string:
+                        if mismatch_count == 0:
                             # Reset the number of mismatches to 0
                             sample[analysistype].results[experiment][
                                 contig
@@ -357,14 +357,14 @@ def ipcress_mismatches(metadata, analysistype, iupac):
                         sample[analysistype].results[experiment][contig].forward_mismatch_details = str()
                     # Mismatches in reverse primer
                     if int(sample[analysistype].results[experiment][contig].reverse_mismatch) > 0:
-                        mismatch_string = determine_mismatch_locations(
+                        mismatch_string, mismatch_count = determine_mismatch_locations(
                                 ref_primer=sample[analysistype].results[experiment][contig].reverse_ref,
                                 query_primer=sample[analysistype].results[experiment][contig].reverse_query,
                                 iupac=iupac
                         )
                         # I've found an issue with ipcress where it sometimes reports mismatches when there are
                         # multiple degenerate bases, but there are no real mismatches
-                        if not mismatch_string:
+                        if mismatch_count == 0:
                             # Reset the number of mismatches to 0
                             sample[analysistype].results[experiment][
                                 contig
@@ -410,6 +410,10 @@ def determine_mismatch_locations(ref_primer, query_primer, iupac):
 
     # Initialise a string to hold mismatch details
     mismatch_string = str()
+
+    # Initialise a count for the number of mismatches
+    mismatch_count = 0
+
     # Iterate through every base of the primer sequence
     for pos, ref_base in enumerate(ref_primer):
         # Use the iterator to extract the corresponding base of the query sequence
@@ -423,11 +427,15 @@ def determine_mismatch_locations(ref_primer, query_primer, iupac):
             # Add the current position (+1 due to 0-based indexing) plus the details of the mismatch
             # e.g. 12T>G indicates that at position 12 of the query sequence, a G is present instead of the G in the
             # primer sequence
-            mismatch_string += '{pos}{ref}>{query}'.format(pos=pos + 1,
-                                                           ref=ref_base,
-                                                           query=query_base)
-    # Return the formatted mismatch string
-    return mismatch_string
+            mismatch_string += '{pos}{ref}>{query}'.format(
+                pos=pos + 1,
+                ref=ref_base,
+                query=query_base
+            )
+            # Increase the mismatch count
+            mismatch_count += 1
+    # Return the formatted mismatch string and the mismatch count
+    return mismatch_string, mismatch_count
 
 
 def best_hit(metadata, analysistype, range_buffer=0):
@@ -926,13 +934,13 @@ def blast_mismatches(ref_primer, query_primer, primer_pos_range, query_pos_range
                                     end_padding=end_padding,
                                     direction=direction)
     # Calculate the mismatch details
-    mismatch_string = determine_mismatch_locations(ref_primer=ref_primer,
+    mismatch_string, _ = determine_mismatch_locations(ref_primer=ref_primer,
                                                    query_primer=query_primer,
                                                    iupac=iupac)
     return mismatch_string, query_primer
 
 
-def extract_sequence(sample, contig, query_pos_range, front_padding, end_padding, direction):
+def extract_sequence(sample, contig, qu`ery_pos_range, front_padding, end_padding, direction):
     """
     Extract the sequence from the query genome using the range of the hit
     :param sample: Metadata object for the current query
