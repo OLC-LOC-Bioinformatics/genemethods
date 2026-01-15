@@ -940,7 +940,7 @@ def blast_mismatches(ref_primer, query_primer, primer_pos_range, query_pos_range
     return mismatch_string, query_primer
 
 
-def extract_sequence(sample, contig, qu`ery_pos_range, front_padding, end_padding, direction):
+def extract_sequence(sample, contig, query_pos_range, front_padding, end_padding, direction):
     """
     Extract the sequence from the query genome using the range of the hit
     :param sample: Metadata object for the current query
