@@ -326,10 +326,7 @@ def ipcress_mismatches(metadata, analysistype, iupac):
             # Iterate through all the ipcress experiments parsed above
             for experiment in sample[analysistype].results.datastore:
                 for contig in sample[analysistype].results[experiment].datastore:
-                    # Calculate the total number of mismatches
-                    sample[analysistype].results[experiment][contig].total_mismatch = \
-                        int(sample[analysistype].results[experiment][contig].forward_mismatch) + \
-                        int(sample[analysistype].results[experiment][contig].reverse_mismatch)
+
                     # Determine the range of the amplicon - make sure that the direction is accounted for
                     if sample[analysistype].results[experiment][contig].direction == 'forward':
                         sample[analysistype].results[experiment][contig].amplicon_range = \
@@ -342,23 +339,54 @@ def ipcress_mismatches(metadata, analysistype, iupac):
                     # Determine if the forward primer has any mismatches
                     if int(sample[analysistype].results[experiment][contig].forward_mismatch) > 0:
                         # Calculate details of the mismatches
-                        sample[analysistype].results[experiment][contig].forward_mismatch_details = \
-                            determine_mismatch_locations(
+                        mismatch_string = determine_mismatch_locations(
                                 ref_primer=sample[analysistype].results[experiment][contig].forward_ref,
                                 query_primer=sample[analysistype].results[experiment][contig].forward_query,
-                                iupac=iupac)
+                                iupac=iupac
+                            )
+                        # I've found an issue with ipcress where it sometimes reports mismatches when there are 
+                        # multiple degenerate bases, but there are no real mismatches
+                        if not mismatch_string:
+                            # Reset the number of mismatches to 0
+                            sample[analysistype].results[experiment][
+                                contig
+                            ].forward_mismatch = '0'
+                        sample[analysistype].results[experiment][contig].forward_mismatch_details = mismatch_string
                     # If no mismatches, initialise the attributes as an empty string
                     else:
                         sample[analysistype].results[experiment][contig].forward_mismatch_details = str()
                     # Mismatches in reverse primer
                     if int(sample[analysistype].results[experiment][contig].reverse_mismatch) > 0:
-                        sample[analysistype].results[experiment][contig].reverse_mismatch_details = \
-                            determine_mismatch_locations(
+                        mismatch_string = determine_mismatch_locations(
                                 ref_primer=sample[analysistype].results[experiment][contig].reverse_ref,
                                 query_primer=sample[analysistype].results[experiment][contig].reverse_query,
-                                iupac=iupac)
+                                iupac=iupac
+                        )
+                        # I've found an issue with ipcress where it sometimes reports mismatches when there are
+                        # multiple degenerate bases, but there are no real mismatches
+                        if not mismatch_string:
+                            # Reset the number of mismatches to 0
+                            sample[analysistype].results[experiment][
+                                contig
+                            ].reverse_mismatch = '0'
+                        sample[analysistype].results[experiment][contig].reverse_mismatch_details = mismatch_string
+
                     else:
                         sample[analysistype].results[experiment][contig].reverse_mismatch_details = str()
+
+                    # Calculate the total number of mismatches
+                    sample[analysistype].results[experiment][contig].total_mismatch = (
+                        int(
+                            sample[analysistype]
+                            .results[experiment][contig]
+                            .forward_mismatch
+                        )
+                        + int(
+                            sample[analysistype]
+                            .results[experiment][contig]
+                            .reverse_mismatch
+                        )
+                    )
     return metadata
 
 
@@ -370,10 +398,20 @@ def determine_mismatch_locations(ref_primer, query_primer, iupac):
     :param iupac: Dictionary of IUPAC codes
     :return: mismatch_string: Formatted string of mismatches
     """
+    # Ensure that both sequences are uppercase for comparison
+    ref_primer = ref_primer.upper()
+    query_primer = query_primer.upper()
+
+    # Pad (or truncate) query_primer to match ref length to avoid IndexError
+    if len(query_primer) < len(ref_primer):
+        query_primer += '-' * (len(ref_primer) - len(query_primer))
+    elif len(query_primer) > len(ref_primer):
+        query_primer = query_primer[:len(ref_primer)]
+
     # Initialise a string to hold mismatch details
     mismatch_string = str()
     # Iterate through every base of the primer sequence
-    for pos, ref_base in enumerate(ref_primer.upper()):
+    for pos, ref_base in enumerate(ref_primer):
         # Use the iterator to extract the corresponding base of the query sequence
         query_base = query_primer[pos]
         # Determine if the ref base and the query base do not match. If the primer has an IUPAC degenerate base e.g.
@@ -910,26 +948,30 @@ def extract_sequence(sample, contig, query_pos_range, front_padding, end_padding
     # Read in the query genome using SeqIO
     for record in SeqIO.parse(sample.general.bestassemblyfile, 'fasta'):
         # Ensure that the contig is the one with the hit
-        if record.id == contig:
-            # Set the start and stop positions of the amplicon sequence depending on the direction
-            if direction == 'revcomp':
-                # Reverse hits are the beginning of the range minus the number of missing bases to pad the end (minus
-                # one) due to zero-based indexing
-                start = query_pos_range[0] - end_padding - 1
-                # The end position is the the final position of the range plus the number of missing bases at the front
-                end = query_pos_range[-1] + front_padding + 1
-            else:
-                start = query_pos_range[0] - front_padding - 1
-                end = query_pos_range[-1] + end_padding + 1
-            # Extract the query sequence
-            query_sequence = str(record.seq)[start: end]
-            # Use the reverse complement of the sequence if the direction is reverse
-            if direction == 'revcomp':
-                seq_o = Seq(query_sequence)
-                query_sequence = seq_o.reverse_complement()
-    # Ensure that the sequence is in uppercase
-    query_sequence = query_sequence.upper()
-    return query_sequence
+        if record.id != contig:
+            continue
+        seq_len = len(record.seq)
+        # Set the start and stop positions of the amplicon sequence depending
+        # on the direction
+        if direction == 'revcomp':
+            # Reverse hits are the beginning of the range minus the number of
+            # missing bases to pad the end (minus
+            # one) due to zero-based indexing
+            start = max(0, query_pos_range[0] - end_padding - 1)
+            # The end position is the the final position of the range plus the
+            # number of missing bases at the front
+            end = min(seq_len, query_pos_range[-1] + front_padding)
+        else:
+            start = max(0, query_pos_range[0] - front_padding - 1)
+            end = min(seq_len, query_pos_range[-1] + end_padding)
+        # Extract the query sequence
+        query_sequence = str(record.seq)[start: end]
+        # Use the reverse complement of the sequence if the direction
+        # is reverse
+        if direction == 'revcomp':
+            query_sequence = str(Seq(query_sequence).reverse_complement())
+
+    return query_sequence.upper()
 
 
 def amplicon_write(metadata, analysistype, reportpath,):
