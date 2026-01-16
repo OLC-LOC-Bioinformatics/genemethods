@@ -346,11 +346,10 @@ def ipcress_mismatches(metadata, analysistype, iupac):
                             )
                         # I've found an issue with ipcress where it sometimes reports mismatches when there are 
                         # multiple degenerate bases, but there are no real mismatches
-                        if mismatch_count == 0:
-                            # Reset the number of mismatches to 0
-                            sample[analysistype].results[experiment][
-                                contig
-                            ].forward_mismatch = '0'
+                        # Reset the number of mismatches to the correct value
+                        sample[analysistype].results[experiment][
+                            contig
+                        ].forward_mismatch = str(mismatch_count)
                         sample[analysistype].results[experiment][contig].forward_mismatch_details = mismatch_string
                     # If no mismatches, initialise the attributes as an empty string
                     else:
@@ -364,11 +363,10 @@ def ipcress_mismatches(metadata, analysistype, iupac):
                         )
                         # I've found an issue with ipcress where it sometimes reports mismatches when there are
                         # multiple degenerate bases, but there are no real mismatches
-                        if mismatch_count == 0:
-                            # Reset the number of mismatches to 0
-                            sample[analysistype].results[experiment][
-                                contig
-                            ].reverse_mismatch = '0'
+                        # Reset the number of mismatches to the correct value
+                        sample[analysistype].results[experiment][
+                            contig
+                        ].reverse_mismatch = str(mismatch_count)
                         sample[analysistype].results[experiment][contig].reverse_mismatch_details = mismatch_string
 
                     else:
